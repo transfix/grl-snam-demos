@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRL-SNAM: From Raw Geometry to City-Scale Fog-of-War Navigation</title>
+<style>
+  :root {
+    --navy: #1b2a52; --navy-soft: #44507a; --hairline: #d3dae8; --card-line: #b9c2d9;
+    --teal: #177a6e; --sienna: #b34e1f; --paper: #faf9f5; --body: #2c3654;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--body); font-family: "Segoe UI", -apple-system, Arial, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 20px 40px; }
+  h1 { font-family: Cambria, Georgia, "Times New Roman", serif; color: var(--navy); font-size: clamp(30px, 4.5vw, 44px); line-height: 1.1; text-align: center; }
+  .ornament { display: flex; align-items: center; justify-content: center; padding: 14px 0 10px; }
+  .ornament .line { width: min(320px, 30vw); height: 2px; background: var(--navy); opacity: .85; }
+  .ornament .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--navy); }
+  .ornament .diamond { width: 12px; height: 12px; background: var(--paper); border: 2px solid var(--navy); transform: rotate(45deg); margin: 0 14px; }
+  .tagline { font-family: Cambria, Georgia, serif; font-style: italic; color: var(--navy-soft); text-align: center; font-size: 19px; }
+  .authors { text-align: center; font-size: 16px; color: var(--navy); padding-top: 14px; }
+  .authors a { color: var(--teal); }
+
+  .poster { margin: 34px 0 8px; border: 1.5px solid var(--card-line); border-radius: 10px; padding: 5px; background: #fff; }
+  .poster img { display: block; width: 100%; border-radius: 6px; }
+  .poster-cap { text-align: center; font-size: 14.5px; color: var(--navy-soft); padding: 6px 0 0; }
+
+  h2 { font-family: Cambria, Georgia, serif; color: var(--navy); font-size: 27px; margin: 44px 0 12px; border-bottom: 2px solid var(--navy); padding-bottom: 6px; }
+  p.body { margin: 10px 0; font-size: 17px; }
+  p.body b { color: var(--navy); }
+
+  .demo { display: flex; gap: 20px; margin: 22px 0; border: 1.5px solid var(--card-line); border-radius: 12px; background: #fff; padding: 16px; align-items: flex-start; }
+  .demo .thumb { flex-shrink: 0; width: 300px; border-radius: 7px; overflow: hidden; border: 1px solid var(--hairline); background: #23283a; }
+  .demo .thumb img { display: block; width: 100%; }
+  .demo h3 { font-family: Cambria, Georgia, serif; color: var(--navy); font-size: 21px; line-height: 1.2; }
+  .demo .date { font-family: Consolas, monospace; font-size: 14px; color: var(--teal); font-weight: 700; letter-spacing: 1px; }
+  .demo p { font-size: 16px; margin: 8px 0 12px; }
+  .btn { display: inline-block; background: var(--navy); color: #fff; text-decoration: none; font-size: 15px; font-weight: 600; padding: 8px 18px; border-radius: 8px; }
+  .btn:hover { background: #2a3d74; }
+  .btn.ghost { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); margin-left: 8px; }
+
+  table { border-collapse: collapse; margin: 14px auto; background: #fff; border: 1.5px solid var(--card-line); border-radius: 9px; overflow: hidden; }
+  th, td { font-size: 15.5px; padding: 6px 14px; text-align: right; font-family: Consolas, monospace; }
+  th { background: var(--navy); color: #f2f5fc; font-family: "Segoe UI", sans-serif; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 13.5px; }
+  td:first-child, th:first-child { text-align: left; }
+  tr:nth-child(even) td { background: #f5f6fa; }
+  td.good { color: var(--teal); font-weight: 700; } td.bad { color: var(--sienna); }
+  .tablenote { text-align: center; font-size: 14.5px; color: var(--navy-soft); margin-top: -6px; }
+
+  ul.scope { margin: 10px 0 10px 22px; font-size: 16.5px; }
+  ul.scope li { margin: 7px 0; }
+
+  .foot { border-top: 1.5px solid var(--hairline); margin-top: 46px; padding-top: 14px; text-align: center; font-size: 14px; color: var(--navy-soft); }
+  @media (max-width: 720px) { .demo { flex-direction: column; } .demo .thumb { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>GRL-SNAM: From Raw Geometry to City-Scale Fog-of-War Navigation</h1>
+  <div class="ornament"><span class="dot"></span><span class="line"></span><span class="diamond"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="tagline">A one-command pipeline, belief-driven driving, and eight-vehicle squads on a real city — July&nbsp;–&nbsp;August 2026</div>
+  <div class="authors">Joe Rivera — CyberPC Angel, LLC &nbsp;·&nbsp; with the CVC Lab, UT Austin &nbsp;·&nbsp;
+    <a href="https://github.com/CVC-Lab/GRL-SNAM">GRL-SNAM on GitHub</a></div>
+
+  <div class="poster"><a href="assets/poster.png"><img src="assets/poster.png" alt="GRL-SNAM demo deliverables poster"></a></div>
+  <div class="poster-cap">The deliverables at a glance — click for full resolution.</div>
+
+  <h2>The arc</h2>
+  <p class="body">Three demo deliverables, in the order they landed. Each is a self-contained page whose films play
+  inline, and every number quoted on those pages <b>replays from a recorded trace</b> — nothing is re-simulated for
+  display. The July demo drives a learned policy over real Austin geometry; August first takes the map away and
+  makes the agent earn it through a sensor, then scales to a squad whose members must discover each other.</p>
+
+  <div class="demo">
+    <div class="thumb"><img src="assets/grl_freedrive_hud.png" alt="Live-metrics HUD over Austin geometry"></div>
+    <div>
+      <div class="date">2026-07-27 · DELIVERABLE 1</div>
+      <h3>One command, whole pipeline — the CLI + live-metrics demo</h3>
+      <p><code>grl-snam pipeline &lt;world_model&gt;</code> takes a raw <code>terrain.json</code> +
+      <code>buildings.glb</code> bundle through SDF construction and self-supervised training to a rendered
+      multi-goal free-drive with a live HUD: coefficients α β γ, wall clearance, speed, escape mode, goals
+      reached — penetration 0.0&nbsp;%.</p>
+      <a class="btn" href="2026-07-grl-snam-cli-demo/">Open the demo page</a>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="thumb"><img src="assets/fog_ghost_c.png" alt="Fog-of-war ghost story frame"></div>
+    <div>
+      <div class="date">2026-08-12 · DELIVERABLE 2</div>
+      <h3>Fog of war — the map is a belief, not the truth</h3>
+      <p>The planner runs on a belief map that may disagree with ground truth, updated only by a ray-cast sensor
+      with occlusion; vehicle dynamics give reactions a cost. Three stories — a ghost wall, a mid-drive blocker,
+      a moving unit — all reach the goal with zero collisions, and the ~22&nbsp;KB trace is the single source the
+      film, the live window and the page replay.</p>
+      <a class="btn" href="2026-08-fog-of-war-nav/">Open the demo page</a>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="thumb"><img src="assets/city_pursuit.png" alt="Eight-vehicle pursuit over Austin at night"></div>
+    <div>
+      <div class="date">2026-08-13 · DELIVERABLE 3</div>
+      <h3>Squads at city scale — private beliefs, live targets</h3>
+      <p>Eight vehicles in one Austin scene, each with its own belief, route and distance field. Goals can be other
+      vehicles read live: a convoy where only the leader knows the destination, a pursuit where every hunter closes
+      from ~900&nbsp;m to under 10.5&nbsp;m, and an eight-vehicle rendezvous — replayed with the fields of view the
+      vehicles actually had.</p>
+      <a class="btn" href="2026-08-fog-of-war-at-city-scale/">Open the demo page</a>
+    </div>
+  </div>
+
+  <h2>What we measure</h2>
+  <p class="body">The fog stories are scored against <b>truth</b>, not against the agent's belief:</p>
+  <table>
+    <tr><th>story</th><th>map updates</th><th>detour peak</th><th>driven / straight</th><th>collisions</th></tr>
+    <tr><td>ghost</td><td>21</td><td>37.8 m</td><td>143.3 / 120.0 m</td><td class="good">0</td></tr>
+    <tr><td>blocker</td><td>10</td><td>20.8 m</td><td>127.3 / 120.0 m</td><td class="good">0</td></tr>
+    <tr><td>unit</td><td>61</td><td>13.4 m</td><td>135.4 / 120.0 m</td><td class="good">0</td></tr>
+  </table>
+  <p class="body">At city scale, one local controller runs with or without an A* route spine over the agent's own
+  belief. Driven distance against the straight line, same map and seed:</p>
+  <table>
+    <tr><th>map</th><th>route + sdf</th><th>sdf-only</th></tr>
+    <tr><td>blocker</td><td>+6 %</td><td class="bad">+237 %</td></tr>
+    <tr><td>traffic</td><td>+3 %</td><td class="bad">+252 %</td></tr>
+    <tr><td>Austin</td><td class="good">+14 % — arrives</td><td class="bad">never arrives</td></tr>
+  </table>
+  <p class="tablenote">The direction flips with map complexity: on one obstacle the spine is a tax; on a real city
+  the reactive controller sits in a local minimum. Zero collisions either way — the difference is arrival.</p>
+
+  <h2>What this does not claim</h2>
+  <ul class="scope">
+    <li><b>Real time is not there.</b> 0.73 Hz for 8 agents at 384²; the profile is characterised in the repo's
+    <code>docs/PERFORMANCE.md</code>, and CUDA measurably loses to the CPU at this scale.</li>
+    <li><b>Wall visibility is a rendering input,</b> not agent knowledge — the planner's sensor is 2-D and carries
+    no height; the mesh cast replays recorded positions under a stated sensor model.</li>
+    <li><b>One agent in the dispersal scene stalls</b> 263.7 m short — the local controller giving up when the
+    route keeps changing under it. Recorded, not hidden.</li>
+  </ul>
+
+  <div class="foot">
+    Geometry © OpenStreetMap contributors (ODbL) · terrain SRTM (US public domain) · rendered by the cvcGL scene
+    renderer — the same engine the live window uses.<br>
+    <a href="https://github.com/CVC-Lab/GRL-SNAM" style="color:var(--teal)">github.com/CVC-Lab/GRL-SNAM</a>
+  </div>
+
+</div>
+</body>
+</html>

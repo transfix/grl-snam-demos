@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRL-SNAM — navigating on a map that is wrong</title>
+<style>
+  :root{
+    --ground:#f3f4ee; --card:#fbfcf7; --ink:#1b1f16; --muted:#5b6252; --line:#d7dacc;
+    --accent:#b9791a; --accent-ink:#8a5a12; --open:#4a5c33; --open-soft:#e7ecdd; --prop:#a2571a; --prop-soft:#f3e6d3;
+    --ghost:#b98a1a; --wall:#a83b32; --unit:#a63f8a; --route:#2f6bb0; --track:#9a8321;
+    --shadow:0 1px 2px rgba(28,34,20,.06),0 8px 24px rgba(28,34,20,.08);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{--ground:#111409;--card:#1c2114;--ink:#edf0e4;--muted:#9aa389;--line:#2b3120;
+    --accent:#e0a63e;--accent-ink:#eab857;--open:#7c9750;--open-soft:#20281440;--prop:#e0a63e;--prop-soft:#3a2c1040;
+    --ghost:#f2b840;--wall:#d94a3f;--unit:#e05fb4;--route:#59a6ff;--track:#f9d94c;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.5);}}
+  *{box-sizing:border-box} body{margin:0}
+  .wrap{background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.58;padding:clamp(22px,5vw,64px) 20px;display:flex;justify-content:center}
+  .col{width:100%;max-width:880px;display:flex;flex-direction:column;gap:30px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);display:flex;align-items:center;gap:10px}
+  .eyebrow::before{content:"";width:26px;height:2px;background:var(--accent);display:inline-block}
+  h1{font-size:clamp(30px,5.4vw,50px);line-height:1.03;letter-spacing:-.022em;font-weight:800;margin:0;text-wrap:balance;max-width:16ch}
+  .lede{font-size:clamp(16px,2.2vw,19px);color:var(--muted);margin:0;max-width:62ch}
+  h2{font-size:clamp(21px,3vw,27px);line-height:1.12;letter-spacing:-.015em;margin:0 0 2px;text-wrap:balance}
+  h2 .n{font-family:var(--mono);font-size:.6em;color:var(--accent-ink);font-weight:600;margin-right:.6em}
+  h3{margin:0 0 6px;font-size:15px;letter-spacing:-.01em}
+  section{display:flex;flex-direction:column;gap:14px} p{margin:0;max-width:64ch}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);border:1px solid var(--line);border-radius:20px;padding:3px 11px;background:var(--card)}
+  figure{margin:0} .screen{border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:var(--shadow);background:#0c0f08}
+  video{display:block;width:100%;height:auto;background:#0c0f08}
+  .caption{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:9px 13px;border-top:1px solid var(--line);background:var(--card);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .spec{background:var(--card);padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+  .spec dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .spec dd{margin:0;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+  .spec dd small{font-weight:500;color:var(--muted);font-size:12px}
+  .board{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:20px;box-shadow:var(--shadow)}
+  .board svg{display:block;width:100%;height:auto} .board svg text{font-family:var(--mono)}
+  .sv-prop{fill:var(--prop-soft);stroke:var(--prop)} .sv-open{fill:var(--open-soft);stroke:var(--open)}
+  .sv-band{fill:var(--card);stroke:var(--open)} .sv-seam{stroke:var(--line)}
+  .t-ink{fill:var(--ink)} .t-mut{fill:var(--muted)} .t-acc{fill:var(--accent-ink)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media(max-width:560px){.cols{grid-template-columns:1fr}}
+  .mini{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 17px} .mini p{font-size:14px;color:var(--muted)}
+  .mini.open h3::before{content:"● ";color:var(--open)} .mini.prop h3::before{content:"▲ ";color:var(--prop)}
+  .foot{font-family:var(--mono);font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:18px;display:flex;flex-direction:column;gap:5px}
+  .mono{font-family:var(--mono);font-size:.92em;color:var(--accent-ink)}
+  pre{margin:0;overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 18px;box-shadow:var(--shadow);font-family:var(--mono);font-size:12.5px;line-height:1.75;color:var(--ink);white-space:pre}
+  pre .c{color:var(--muted)}
+  .key{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px 15px}
+  .key b{display:inline-flex;align-items:center;gap:6px;font-weight:500;color:var(--ink)}
+  .key i{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
+</style></head>
+<body><div class="wrap"><div class="col">
+
+  <header style="display:flex;flex-direction:column;gap:15px">
+    <div class="eyebrow">GRL-SNAM · incomplete information · vehicle dynamics</div>
+    <h1>Navigating on a map that is wrong.</h1>
+    <p class="lede">A vehicle plans against what it <em>believes</em>, not against ground truth — and the
+      two are allowed to disagree. It detours around a building that was demolished, discovers a wall
+      that appeared after the map was made, and routes around a moving unit whose track expires instead
+      of scarring the map forever. It drives with <b>real acceleration and a turning radius</b>, so a
+      late discovery costs it a manoeuvre, not a teleport. Every run below reaches its goal with
+      <b>zero collisions against ground truth</b>.</p>
+    <div><span class="tag">Belief ≠ truth · sensor-driven · turning radius</span></div>
+  </header>
+
+  <section>
+    <h2><span class="n">01</span>Start here — the whole reel</h2>
+    <p>Three stories, ninety seconds. Each one is a different way for a map to be wrong, and in each the
+      agent has to find out for itself. Watch the <b>blue route</b> change the moment the sensor changes
+      the agent's mind — the map update and the replan are the same event.</p>
+    <figure class="screen">
+      <video controls autoplay muted loop playsinline preload="metadata"><source src="fog_demo.mp4" type="video/mp4"></video>
+      <figcaption class="caption"><span>stale map · new blocker · moving unit</span><span>90.8 s · 1816 frames · 0 collisions across all three</span></figcaption>
+    </figure>
+    <div class="key">
+      <b><i style="background:var(--ghost)"></i>believed obstacle</b>
+      <b><i style="background:var(--wall)"></i>confirmed against truth</b>
+      <b><i style="background:var(--unit)"></i>transient mark (expires)</b>
+      <b><i style="background:var(--route)"></i>planned route</b>
+      <b><i style="background:var(--track)"></i>driven path</b>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>The stale map — a wall the world no longer has</h2>
+    <p>The prior map carries a wall straight across the route. Reality is an open field, but belief is
+      all the agent has, so it commits to the detour and drives it — <b>37.8 m off the straight line</b>,
+      earned entirely by a building that is not there. Then a ray finally crosses the spot, the ghost
+      clears, and the route snaps straight to the goal. The yellow track keeps the receipt: you can see
+      exactly what the stale map cost.</p>
+    <p style="font-size:14px;color:var(--muted)">Note what does <em>not</em> clear — the part of the wall
+      the sensor never swept stays in the map. The agent only knows what it has looked at, which is the
+      honest behaviour and the reason the clearing looks ragged rather than instant.</p>
+    <figure class="screen">
+      <video controls muted loop playsinline preload="metadata"><source src="fog_ghost.mp4" type="video/mp4"></video>
+      <figcaption class="caption"><span>prior map wrong · belief cleared by observation</span><span>21 map updates · 143.3 m driven vs 120.0 m straight</span></figcaption>
+    </figure>
+    <dl class="specs">
+      <div class="spec"><dt>Map says</dt><dd>Wall <small>· across the route</small></dd></div>
+      <div class="spec"><dt>Truth</dt><dd>Open field</dd></div>
+      <div class="spec"><dt>Detour peak</dt><dd>37.8 m <small>· cost of the ghost</small></dd></div>
+      <div class="spec"><dt>Map updates</dt><dd>21 <small>· each one a replan</small></dd></div>
+      <div class="spec"><dt>Collisions</dt><dd>0 <small>· scored vs truth</small></dd></div>
+      <div class="spec"><dt>Run</dt><dd>15.5 s <small>· 258 world ticks</small></dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>The new blocker — discovered on approach</h2>
+    <p>Now the map is right and <em>reality</em> changes: a wall appears across the route after the drive
+      has begun. The agent cannot know until it looks, so this is a genuine late discovery — and it is
+      where the vehicle model earns its place. A point mass would simply reverse its velocity vector. A
+      vehicle with a turning radius has to <b>commit to an arc</b>, which is why the yellow track curves
+      out and around rather than folding back on itself.</p>
+    <p style="font-size:14px;color:var(--muted)">The score that matters here is penetration against
+      <b>truth</b>, not against belief — hitting a wall you did not know about still counts as hitting a
+      wall. It stayed out of it entirely.</p>
+    <figure class="screen">
+      <video controls muted loop playsinline preload="metadata"><source src="fog_blocker.mp4" type="video/mp4"></video>
+      <figcaption class="caption"><span>reality changed mid-drive · replan under dynamics</span><span>0 steps inside the wall · 20.8 m detour peak</span></figcaption>
+    </figure>
+    <dl class="specs">
+      <div class="spec"><dt>Blocker</dt><dd>~30 m <small>· appears mid-drive</small></dd></div>
+      <div class="spec"><dt>Discovery</dt><dd>By sensor <small>· not scripted</small></dd></div>
+      <div class="spec"><dt>Collisions</dt><dd>0 <small>· scored vs truth</small></dd></div>
+      <div class="spec"><dt>Detour peak</dt><dd>20.8 m</dd></div>
+      <div class="spec"><dt>Map updates</dt><dd>10</dd></div>
+      <div class="spec"><dt>Run</dt><dd>13.7 s <small>· 228 world ticks</small></dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>The moving unit — a mark that expires</h2>
+    <p>A unit crosses the route. It is marked and avoided like any obstacle, but it lives in a
+      <b>separate layer with a time-to-live</b> rather than in the static map. That distinction is the
+      whole point: baked into belief, a moving obstacle leaves a permanent smear of ghosts along its
+      path, and every future route detours around a corridor nothing is in. Here the marks decay behind
+      it and the map ends clean.</p>
+    <figure class="screen">
+      <video controls muted loop playsinline preload="metadata"><source src="fog_unit.mp4" type="video/mp4"></video>
+      <figcaption class="caption"><span>transient obstacle · decaying dynamic layer</span><span>61 map updates · no marks left at the end</span></figcaption>
+    </figure>
+    <dl class="specs">
+      <div class="spec"><dt>Obstacle</dt><dd>Moving <small>· 30-mark track</small></dd></div>
+      <div class="spec"><dt>Layer</dt><dd>Time-to-live <small>· 2 world s</small></dd></div>
+      <div class="spec"><dt>Residue</dt><dd>None <small>· fully decayed</small></dd></div>
+      <div class="spec"><dt>Map updates</dt><dd>61</dd></div>
+      <div class="spec"><dt>Collisions</dt><dd>0</dd></div>
+      <div class="spec"><dt>Run</dt><dd>16.3 s <small>· 271 world ticks</small></dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span>How it works — two grids, one sensor</h2>
+    <p>There are two maps and they are never the same object. <b>Truth</b> is what is actually there; the
+      simulator senses and collides against it, and it is the only thing the score is computed from.
+      <b>Belief</b> is what the agent thinks — a probabilistic occupancy grid the planner and the
+      obstacle field are built from. The only channel between them is a ray-cast sensor with occlusion:
+      you cannot see through a building, so the gap behind one stays unknown.</p>
+    <p>Unknown space is a <em>declared policy</em>, not an accident. These runs are optimistic — drive
+      into the unknown and replan on discovery, which is what most real robots do. The pessimistic
+      setting treats unknown as wall and never outruns the sensor; flipping it is a one-word change and
+      a good demo in its own right.</p>
+    <div class="board">
+      <svg viewBox="0 0 720 258" role="img" aria-label="Truth and belief are separate grids joined only by a sensor">
+        <rect class="sv-open" x="16" y="16" width="200" height="86" rx="10" stroke-width="1.6"/>
+        <text class="t-ink" x="34" y="44" font-size="14" font-weight="700">TRUTH</text>
+        <text class="t-mut" x="34" y="65" font-size="11.5">what is actually there</text>
+        <text class="t-mut" x="34" y="83" font-size="11.5">collisions scored here</text>
+        <rect class="sv-prop" x="504" y="16" width="200" height="86" rx="10" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text class="t-ink" x="522" y="44" font-size="14" font-weight="700">BELIEF</text>
+        <text class="t-mut" x="522" y="65" font-size="11.5">what the agent thinks</text>
+        <text class="t-mut" x="522" y="83" font-size="11.5">planned against</text>
+        <line class="sv-seam" x1="216" y1="59" x2="504" y2="59" stroke-width="1.4" marker-end="url(#a)"/>
+        <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6" fill="none" stroke="currentColor" class="t-mut" stroke-width="1.4"/></marker></defs>
+        <text class="t-acc" x="360" y="50" text-anchor="middle" font-size="11">ray-cast sensor · with occlusion</text>
+        <text class="t-mut" x="360" y="78" text-anchor="middle" font-size="10.5">the ONLY channel — nothing else crosses</text>
+        <rect class="sv-band" x="16" y="122" width="688" height="40" rx="9" stroke-width="1.5"/>
+        <text class="t-ink" x="34" y="147" font-size="12.5" font-weight="700">Route spine</text>
+        <text class="t-mut" x="700" y="147" font-size="12" text-anchor="end">A* over BELIEF · replanned when belief changes · hysteresis so it does not dither</text>
+        <rect class="sv-band" x="16" y="170" width="688" height="40" rx="9" stroke-width="1.1"/>
+        <text class="t-ink" x="34" y="195" font-size="12.5" font-weight="700">Local control</text>
+        <text class="t-mut" x="700" y="195" font-size="12" text-anchor="end">learned coefficients over a signed-distance field · chases the route</text>
+        <rect class="sv-band" x="16" y="218" width="688" height="40" rx="9" stroke-width="1.1"/>
+        <text class="t-ink" x="34" y="243" font-size="12.5" font-weight="700">Vehicle</text>
+        <text class="t-mut" x="700" y="243" font-size="12" text-anchor="end">kinematic bicycle · acceleration, steering limit, lateral-acceleration cap</text>
+      </svg>
+    </div>
+    <div class="cols">
+      <div class="mini open"><h3>The rebuild is the replan</h3><p>When the sensor changes the agent's mind,
+        the obstacle field is rebuilt and the route is replanned in the same step. There is no separate
+        "notice the change" pass to fall out of sync.</p></div>
+      <div class="mini prop"><h3>A turning radius changes the answer</h3><p>Discovering an obstacle late is
+        only interesting if reacting to it costs something. With a steering limit and a braking model,
+        the recovery is a manoeuvre the vehicle has to fit — which is what makes the margin real.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span>Measured once, replayed everywhere</h2>
+    <p>The simulation runs <b>exactly once</b> and writes a trace: one row per world tick — pose,
+      heading, speed, clearance, which map version was current — plus the belief snapshots and the route
+      at every replan. The video, the live window and every number on this page replay that trace and
+      recompute nothing.</p>
+    <p>That is a correctness property, not bookkeeping. The previous renderer re-derived heading from
+      frame-to-frame motion and overwrote measured speed with playback speed, so the film quietly
+      disagreed with the simulation it claimed to show. Replay removes the possibility. Time is a fixed
+      quantum shared by the simulator and both renderers, so a run is reproducible on a fast machine and
+      a slow one — the same property that makes a benchmark comparable to itself.</p>
+    <dl class="specs">
+      <div class="spec"><dt>Trace</dt><dd>~22 KB <small>· per story</small></dd></div>
+      <div class="spec"><dt>Quantum</dt><dd>60 ms <small>· fixed, shared</small></dd></div>
+      <div class="spec"><dt>Reel render</dt><dd>35.9 s <small>· for 90.8 s of video</small></dd></div>
+      <div class="spec"><dt>Recompute at play</dt><dd>None</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2><span class="n">07</span>Run it yourself</h2>
+    <p>No world model or trained checkpoint is needed — these three stories define their own world.
+      The package carries the CLI and its whole compiled closure (pycvc_gl, VTK, libcvc), so there is
+      no checkout to make and nothing to pip-install; the prefix activates like a venv.</p>
+    <pre>cvcpkg install cvc/grl-snam-cp311 --prefix ./deps
+source ./deps/bin/activate
+
+<span class="c"># 1 · the whole reel in ONE command: record all three, render, concatenate</span>
+grl-snam fog all -o fog/            <span class="c"># → fog/fog_demo.mp4 (+ per-story mp4s and traces)</span>
+
+<span class="c"># …or one story at a time (the trace is reusable — record once, replay often)</span>
+grl-snam fog list                   <span class="c"># the stories, and any recorded summary</span>
+grl-snam fog record ghost           <span class="c"># → traces/ghost/{trace.npz,trace.json}</span>
+grl-snam fog capture ghost -o ghost.mp4 --speed 0.5
+grl-snam fog play    ghost --speed 0.5 --loop   <span class="c"># same scene, in a window</span></pre>
+    <p style="font-size:14px;color:var(--muted)"><span class="mono">record</span> is the only step that
+      simulates; <span class="mono">capture</span> and <span class="mono">play</span> are the same scene
+      builder over the same trace, so the window and the film cannot drift apart. The measured summary in
+      <span class="mono">trace.json</span> is where the numbers on this page come from.</p>
+  </section>
+
+  <div class="foot">
+    <span>Open stack: cvcpkg · libcvc / cvcGL · pycvc / pycvc_gl · VolRover3 · GRL-SNAM.</span>
+    <span>Belief: log-odds occupancy, ray-cast sensor with occlusion. Route: A* over belief. Vehicle: kinematic bicycle.</span>
+    <span>Rendered offscreen through cvcGL's scene renderer — the same engine and the same scene the live window uses.</span>
+  </div>
+
+</div></div></body></html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRL-SNAM — learned navigation on real Austin (VolRover3)</title>
+<style>
+  :root{
+    --ground:#f3f4ee; --card:#fbfcf7; --ink:#1b1f16; --muted:#5b6252; --line:#d7dacc;
+    --accent:#b9791a; --accent-ink:#8a5a12; --open:#4a5c33; --open-soft:#e7ecdd; --prop:#a2571a; --prop-soft:#f3e6d3;
+    --shadow:0 1px 2px rgba(28,34,20,.06),0 8px 24px rgba(28,34,20,.08);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{--ground:#111409;--card:#1c2114;--ink:#edf0e4;--muted:#9aa389;--line:#2b3120;
+    --accent:#e0a63e;--accent-ink:#eab857;--open:#7c9750;--open-soft:#20281440;--prop:#e0a63e;--prop-soft:#3a2c1040;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.5);}}
+  *{box-sizing:border-box} body{margin:0}
+  .wrap{background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.58;padding:clamp(22px,5vw,64px) 20px;display:flex;justify-content:center}
+  .col{width:100%;max-width:880px;display:flex;flex-direction:column;gap:30px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);display:flex;align-items:center;gap:10px}
+  .eyebrow::before{content:"";width:26px;height:2px;background:var(--accent);display:inline-block}
+  h1{font-size:clamp(30px,5.4vw,50px);line-height:1.03;letter-spacing:-.022em;font-weight:800;margin:0;text-wrap:balance;max-width:15ch}
+  .lede{font-size:clamp(16px,2.2vw,19px);color:var(--muted);margin:0;max-width:62ch}
+  h2{font-size:clamp(21px,3vw,27px);line-height:1.12;letter-spacing:-.015em;margin:0 0 2px;text-wrap:balance}
+  h2 .n{font-family:var(--mono);font-size:.6em;color:var(--accent-ink);font-weight:600;margin-right:.6em}
+  h3{margin:0 0 6px;font-size:15px;letter-spacing:-.01em}
+  section{display:flex;flex-direction:column;gap:14px} p{margin:0;max-width:64ch}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);border:1px solid var(--line);border-radius:20px;padding:3px 11px;background:var(--card)}
+  figure{margin:0} .screen{border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:var(--shadow);background:#0c0f08}
+  video{display:block;width:100%;height:auto;background:#0c0f08}
+  .caption{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:9px 13px;border-top:1px solid var(--line);background:var(--card);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .spec{background:var(--card);padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+  .spec dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .spec dd{margin:0;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+  .spec dd small{font-weight:500;color:var(--muted);font-size:12px}
+  .board{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:20px;box-shadow:var(--shadow)}
+  .board svg{display:block;width:100%;height:auto} .board svg text{font-family:var(--mono)}
+  .sv-prop{fill:var(--prop-soft);stroke:var(--prop)} .sv-open{fill:var(--open-soft);stroke:var(--open)}
+  .sv-band{fill:var(--card);stroke:var(--open)} .sv-seam{stroke:var(--line)}
+  .t-ink{fill:var(--ink)} .t-mut{fill:var(--muted)} .t-acc{fill:var(--accent-ink)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media(max-width:560px){.cols{grid-template-columns:1fr}}
+  .mini{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 17px} .mini p{font-size:14px;color:var(--muted)}
+  .mini.open h3::before{content:"● ";color:var(--open)} .mini.prop h3::before{content:"▲ ";color:var(--prop)}
+  .foot{font-family:var(--mono);font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:18px;display:flex;flex-direction:column;gap:5px}
+  .mono{font-family:var(--mono);font-size:.92em;color:var(--accent-ink)}
+  pre{margin:0;overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 18px;box-shadow:var(--shadow);font-family:var(--mono);font-size:12.5px;line-height:1.75;color:var(--ink);white-space:pre}
+  pre .c{color:var(--muted)}
+</style></head>
+<body><div class="wrap"><div class="col">
+
+  <header style="display:flex;flex-direction:column;gap:15px">
+    <div class="eyebrow">GRL-SNAM · VolRover3 · learned navigation</div>
+    <h1>The vehicle finds its own way.</h1>
+    <p class="lede">A learned GRL-SNAM policy drives across <b>real Austin, Texas</b>, reacting to the
+      actual buildings through a signed-distance field — with <b>no precomputed route</b>. It even
+      re-targets <b>live</b>: the goal changes mid-drive and the policy redirects on the fly. Trained
+      on the city geometry itself, self-supervised, on a laptop CPU; the films below are captured in
+      3-D through the same VTK engine VolRover3 uses.</p>
+    <div><span class="tag">End-to-end · no A* route · dynamic goals</span></div>
+  </header>
+
+  <section>
+    <h2><span class="n">01</span>Start here — one clean run, A → B</h2>
+    <p>A quick orientation before the long drive: the same learned policy on a single fixed start and
+      goal — a ~550&nbsp;m run threading the Austin street grid, <b>zero building penetration</b>,
+      driven every step by the network. Short and fast; it just works.</p>
+    <figure class="screen">
+      <video controls autoplay muted loop playsinline preload="metadata"><source src="austin_single_drive.mp4" type="video/mp4"></video>
+      <figcaption class="caption"><span>learned SDF navigator · fixed A→B</span><span>0 building hits · VolRover3 / VTK offscreen</span></figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>The long drive — the goal changes live</h2>
+    <p>Now the goal is re-targeted mid-drive through four points toward the corners (each a coloured
+      spire — the <em>active</em> one glows). The learned policy heads for whatever goal is current and
+      reaches each one in turn before the next appears; when a potential-field dead-end shows up it
+      follows the wall until it rounds the obstacle. A drone chase cam tracks the vehicle, which paces
+      itself with realistic acceleration and deceleration into each turn. A <b>live HUD</b> overlays the
+      network's own outputs every frame — its predicted coefficients (α, β, γ), wall clearance, drive
+      mode, and building penetration — so you can watch the policy think while it drives. ~3&nbsp;minutes;
+      the goal switches roughly every 45&nbsp;seconds. This is exactly what
+      <span class="mono">grl-snam&nbsp;pipeline</span> produces from the world model.</p>
+    <figure class="screen">
+      <video controls muted loop playsinline preload="metadata"><source src="austin_multigoal_freedrive.mp4" type="video/mp4"></video>
+      <figcaption class="caption"><span>learned SDF navigator · dynamic goals · live HUD</span><span>VolRover3 / VTK offscreen render · OSM + SRTM</span></figcaption>
+    </figure>
+    <dl class="specs">
+      <div class="spec"><dt>Obstacle model</dt><dd>Signed distance field</dd></div>
+      <div class="spec"><dt>Global route</dt><dd>None <small>· end-to-end</small></dd></div>
+      <div class="spec"><dt>Goals</dt><dd>4 <small>· reached, then re-targeted</small></dd></div>
+      <div class="spec"><dt>Building hits</dt><dd>0 <small>· 895-step drive</small></dd></div>
+      <div class="spec"><dt>Live HUD</dt><dd>α/β/γ <small>· clearance · mode</small></dd></div>
+      <div class="spec"><dt>Render</dt><dd>Offscreen 3-D <small>· VTK · drone chase cam</small></dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>Run it yourself</h2>
+    <p>Everything here is reproducible from the public <b>GRL-SNAM</b> repo through one command-line
+      tool, <span class="mono">grl-snam</span> (running against the CVC Python bindings
+      <span class="mono">pycvc</span> / <span class="mono">pycvc_gl</span> from the CVC stack / cvcpkg).
+      One command takes you from a raw <b>world model</b> — a folder with
+      <span class="mono">terrain.json</span> + <span class="mono">buildings.glb</span> — all the way to a
+      rendered demo. Full reference: the repo <span class="mono">README.md</span> and
+      <span class="mono">docs/training-navigation-on-geometry.md</span>.</p>
+    <pre>cvcpkg install cvc/grl-snam-cp311 --prefix ./deps
+source ./deps/bin/activate
+
+<span class="c"># 1 · the WHOLE demo in ONE command: world model → SDF → train → HUD video</span>
+grl-snam pipeline /path/to/scene_bundle       <span class="c"># → nav_sdf.npz, coef_sdf.pt, mp4</span>
+
+<span class="c"># …or step by step (each artifact is reusable):</span>
+grl-snam build-sdf /path/to/scene_bundle                          <span class="c"># → nav_sdf.npz</span>
+grl-snam train     /path/to/scene_bundle/nav_sdf.npz -o coef_sdf.pt --steps 1500
+grl-snam capture multigoal /path/to/scene_bundle coef_sdf.pt --minutes 3 -o drive.mp4
+
+<span class="c"># 2 · drive it LIVE in VolRover3 (publishes the metrics HUD to the 3-D scene)</span>
+grl-snam demo austin-freedrive --bundle /path/to/scene_bundle --checkpoint coef_sdf.pt
+<span class="c">#   (or in the app: Jobs tab → Load Script → the grl_snam.demos module → Run as Job)</span></pre>
+    <p style="font-size:14px;color:var(--muted)">A scene bundle is a folder with <span class="mono">terrain.json</span> +
+      <span class="mono">buildings.glb</span> (e.g. an OSM+SRTM export). The long drive on this page is exactly
+      what <span class="mono">grl-snam pipeline</span> produces — SDF, training, and the HUD video, from
+      nothing but the world model.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>VolRover3 as an open GRL-SNAM laboratory</h2>
+    <p>These drives are <b>open research</b>, on a stack that is open all the way down — the CVC
+      dependency system, the C++ core, the Python bindings, and VolRover3. GRL-SNAM is the navigation
+      lab on top. Because every seam is a clean public interface, <b>proprietary programs build on the
+      same bench without forking it</b> — adding their sensitive models above the line, in private
+      repositories, while reusing the whole open base unchanged.</p>
+    <div class="board">
+      <svg viewBox="0 0 720 340" role="img" aria-label="Layered architecture: open CVC/GRL-SNAM platform with proprietary work on top">
+        <rect class="sv-prop" x="386" y="16" width="318" height="70" rx="10" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text class="t-ink" x="404" y="42" font-size="15" font-weight="700">DBG — U.S. Army program</text>
+        <text class="t-mut" x="404" y="63" font-size="12">comm-resilient navigation · private repos</text>
+        <text x="684" y="36" font-size="16" text-anchor="end">🔒</text>
+        <rect class="sv-open" x="16" y="16" width="330" height="70" rx="10" stroke-width="1.6"/>
+        <text class="t-ink" x="34" y="42" font-size="15" font-weight="700">GRL-SNAM lab</text>
+        <text class="t-mut" x="34" y="63" font-size="12">learned SDF navigation (these demos) · open</text>
+        <line class="sv-seam" x1="181" y1="86" x2="181" y2="118" stroke-width="1.4"/>
+        <line class="sv-seam" x1="545" y1="86" x2="545" y2="118" stroke-width="1.4"/>
+        <text class="t-acc" x="360" y="108" text-anchor="middle" font-size="10.5" letter-spacing=".06em">pycvc · pycvc_gl · vrhost — the shared seams</text>
+        <rect class="sv-band" x="16" y="122" width="688" height="44" rx="9" stroke-width="1.5"/>
+        <text class="t-ink" x="34" y="149" font-size="12.5" font-weight="700">VolRover3</text>
+        <text class="t-mut" x="700" y="149" font-size="12.5" text-anchor="end">embedded Python · live 3-D scene + jobs</text>
+        <rect class="sv-band" x="16" y="172" width="688" height="44" rx="9" stroke-width="1.1"/>
+        <text class="t-ink" x="34" y="199" font-size="12.5" font-weight="700">pycvc · pycvc_gl</text>
+        <text class="t-mut" x="700" y="199" font-size="12.5" text-anchor="end">SWIG bindings · SDF, volumes, scene graph, render_png_camera</text>
+        <rect class="sv-band" x="16" y="222" width="688" height="44" rx="9" stroke-width="1.1"/>
+        <text class="t-ink" x="34" y="249" font-size="12.5" font-weight="700">libcvc · cvcGL</text>
+        <text class="t-mut" x="700" y="249" font-size="12.5" text-anchor="end">C++ core · geometry, cvc::sdf (SDF_V2), rendering</text>
+        <rect class="sv-band" x="16" y="272" width="688" height="44" rx="9" stroke-width="1.1"/>
+        <text class="t-ink" x="34" y="299" font-size="12.5" font-weight="700">cvcpkg</text>
+        <text class="t-mut" x="700" y="299" font-size="12.5" text-anchor="end">reproducible dependency + package system</text>
+      </svg>
+    </div>
+    <div class="cols">
+      <div class="mini open"><h3>The lab is open</h3><p>Build the SDF, train the navigator, and run these
+        drives from public repos — the field builder even offers CVC's own mesh-exact
+        <span style="font-family:var(--mono);font-size:.92em">cvc::sdf</span>, a bridge to full 3-D later.</p></div>
+      <div class="mini prop"><h3>The program is private</h3><p>DBG layers its restricted, radio-aware models
+        onto the same navigator through the same bindings — warm-started from the open policy, versioned
+        entirely in its own repositories. The open base never sees them.</p></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>Geometry © OpenStreetMap contributors (ODbL) · terrain SRTM (US public domain).</span>
+    <span>Open stack: cvcpkg · libcvc / cvcGL · pycvc / pycvc_gl · VolRover3 · GRL-SNAM.</span>
+    <span>Drives: trained SDF policy, self-supervised on Austin geometry; rendered offscreen via VTK (the VolRover3 engine).</span>
+  </div>
+
+</div></div></body></html>

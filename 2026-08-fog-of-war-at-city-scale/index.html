@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRL-SNAM — fog of war at city scale</title>
+<style>
+  :root{
+    --ground:#f3f4ee; --card:#fbfcf7; --ink:#1b1f16; --muted:#5b6252; --line:#d7dacc;
+    --accent:#b9791a; --accent-ink:#8a5a12; --open:#4a5c33; --open-soft:#e7ecdd;
+    --shadow:0 1px 2px rgba(28,34,20,.06),0 8px 24px rgba(28,34,20,.08);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{--ground:#111409;--card:#1c2114;--ink:#edf0e4;--muted:#9aa389;--line:#2b3120;
+    --accent:#e0a63e;--accent-ink:#eab857;--open:#7c9750;--open-soft:#20281440;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.5);}}
+  *{box-sizing:border-box} body{margin:0}
+  .wrap{background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.58;padding:clamp(22px,5vw,64px) 20px;display:flex;justify-content:center}
+  .col{width:100%;max-width:880px;display:flex;flex-direction:column;gap:30px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);display:flex;align-items:center;gap:10px}
+  .eyebrow::before{content:"";width:26px;height:2px;background:var(--accent);display:inline-block}
+  h1{font-size:clamp(30px,5.4vw,50px);line-height:1.03;letter-spacing:-.022em;font-weight:800;margin:0;text-wrap:balance;max-width:16ch}
+  .lede{font-size:clamp(16px,2.2vw,19px);color:var(--muted);margin:0;max-width:62ch}
+  h2{font-size:clamp(21px,3vw,27px);line-height:1.12;letter-spacing:-.015em;margin:0 0 2px;text-wrap:balance}
+  h2 .n{font-family:var(--mono);font-size:.6em;color:var(--accent-ink);font-weight:600;margin-right:.6em}
+  h3{margin:0 0 6px;font-size:15px;letter-spacing:-.01em}
+  section{display:flex;flex-direction:column;gap:14px} p{margin:0;max-width:64ch}
+  figure{margin:0} .screen{border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:var(--shadow);background:#0c0f08}
+  video{display:block;width:100%;height:auto;background:#0c0f08}
+  .caption{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:9px 13px;border-top:1px solid var(--line);background:var(--card);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .spec{background:var(--card);padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+  .spec b{font-size:19px;letter-spacing:-.01em} .spec span{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  table{border-collapse:collapse;font-family:var(--mono);font-size:12.5px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  td,th{border-bottom:1px solid var(--line);padding:8px 11px;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:500;background:var(--open-soft)}
+  tr:last-child td{border-bottom:none}
+  .note{font-size:14px;border-left:3px solid var(--accent);padding:2px 0 2px 14px;color:var(--ink);background:linear-gradient(90deg,var(--open-soft),transparent 60%)}
+  code,kbd{font-family:var(--mono);font-size:.92em;background:var(--card);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  pre{font-family:var(--mono);font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 17px;overflow-x:auto;margin:0;line-height:1.5}
+  ul{margin:0;padding-left:20px;max-width:64ch} li{margin:5px 0}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 17px}
+  hr{border:none;border-top:1px solid var(--line);margin:2px 0}
+</style></head>
+<body><div class="wrap"><div class="col">
+
+<header>
+  <div class="eyebrow">GRL-SNAM · deliverable · August 2026</div>
+  <h1>Fog of war, at the scale of a real city</h1>
+  <p class="lede">A squad of vehicles crossing a kilometre of real Austin, each planning on
+    its own private map, discovering the city — and each other — through a sensor. Every
+    frame replays a recorded run. Nothing on this page is a re-simulation, and nothing is
+    an artist's impression.</p>
+</header>
+
+<section>
+  <h2><span class="n">01</span>What this is</h2>
+  <p>The earlier deliverable showed one vehicle on a map that was allowed to be wrong. This
+    one takes the same machinery to a real city and to a squad, and adds the thing that was
+    hardest to show honestly: <b>what the vehicles could actually see</b>.</p>
+  <div class="specs">
+    <div class="spec"><b>8</b><span>vehicles, one world</span></div>
+    <div class="spec"><b>private</b><span>belief per agent</span></div>
+    <div class="spec"><b>1200 m</b><span>of real Austin</span></div>
+    <div class="spec"><b>978,242</b><span>city faces, ray-cast</span></div>
+  </div>
+  <p>The geometry is OpenStreetMap buildings on SRTM terrain, rasterised at 3.13 m per cell.
+    Each agent runs its own belief grid, its own route, its own distance field. Nothing is
+    shared between them except the ground truth they are both standing in — and each other:
+    a vehicle occludes and has to be <i>discovered</i>, exactly like a wall.</p>
+</section>
+
+<section>
+  <h2><span class="n">02</span>The three runs</h2>
+  <p>Each is one continuous recorded run, rendered offscreen through the same cvcGL scene
+    renderer the interactive tool uses.</p>
+  <figure>
+    <h3>Eight vehicles, one rendezvous</h3>
+    <p>Eight vehicles enter blind from the west edge and converge on a staging line in the east, each crossing roughly a kilometre of city on a map it is building as it drives.</p>
+    <div class="screen">
+      <video controls preload="metadata" src="finale_rendezvous.mp4"></video>
+      <div class="caption"><span>8 vehicles · 178 s of world time · nav: route+sdf</span>
+        <span>36 s clip</span></div>
+    </div>
+  </figure>
+  <figure>
+    <h3>A convoy nobody told the formation</h3>
+    <p>Only the leader has a destination. Every vehicle behind is chasing the one in front — a target itself reacting to a world it is still discovering, so no path could have been scripted. That target is also a peer, so it has to be <i>seen</i>, not announced. The clip ends when the leader parks.</p>
+    <div class="screen">
+      <video controls preload="metadata" src="convoy.mp4"></video>
+      <div class="caption"><span>5 vehicles · 192 s of world time · nav: route+sdf</span>
+        <span>24 s clip</span></div>
+    </div>
+  </figure>
+  <figure>
+    <h3>A pursuit where the quarry is a vehicle</h3>
+    <p>Two runners flee on crossing lines, three hunters each, the quarry a quarter faster than its pursuers. Because the runners plan and route like everyone else nothing walks through a building, and because the escape lines cross the two packs must thread through one another. Every hunter closes from about 900 m to under 10.5 m.</p>
+    <div class="screen">
+      <video controls preload="metadata" src="pursuit_v2.mp4"></video>
+      <div class="caption"><span>8 vehicles · 180 s of world time · nav: route+sdf</span>
+        <span>36 s clip</span></div>
+    </div>
+  </figure>
+</section>
+
+<section>
+  <h2><span class="n">03</span>Seeing what the vehicles saw</h2>
+  <p>Three separate things are drawn, and they answer different questions.</p>
+  <div class="grid2">
+    <div class="box">
+      <h3>The field of view</h3>
+      <p>The ground carries the recorded sensor coverage as a texture: never seen, seen and
+        remembered, visible right now. It is the true ray-cast set, with the ragged occlusion
+        shadows behind buildings — <b>not</b> a disc, which would be a lie about occlusion.</p>
+    </div>
+    <div class="box">
+      <h3>The walls</h3>
+      <p>A face of a building is lit only if a ray actually reached <i>that face</i>. Drive
+        past a tower and its lower storeys light up; its roof and its far side do not.</p>
+    </div>
+    <div class="box">
+      <h3>The paths</h3>
+      <p>Each vehicle's driven path in its own colour. The <i>planned</i> route appears only
+        in the overhead inset — see the note below, which is a point about honesty rather
+        than about layout.</p>
+    </div>
+    <div class="box">
+      <h3>The overhead inset</h3>
+      <p>A fixed orthographic map of the whole area. Orthographic on purpose: under
+        perspective a marker held above the skyline projects away from the vehicle it
+        belongs to, by up to 169 m at the map edge.</p>
+    </div>
+  </div>
+  <p class="note"><b>Why the planned route is only on the map.</b> The planner string-pulls
+    its route through <i>believed</i> free space before committing to it. Early in a run the
+    belief is empty, so the committed route is a single straight segment more than a
+    kilometre long — which is exactly right, because the planner has not looked yet and
+    genuinely believes that line is clear. On a 2-D map that reads as intent. Drawn over
+    real buildings in the 3-D shot it reads as a rendering bug. It is shown where it tells
+    the truth and omitted where it would mislead.</p>
+</section>
+
+<section>
+  <h2><span class="n">04</span>Which navigator is driving, and whether it matters</h2>
+  <p>There is one local controller — a distance-field follower with a wall-following escape —
+    and one optional addition: an <b>A* route spine planned over the agent's own belief</b>,
+    feeding it a lookahead sub-goal. Every clip here uses the spine, and says so in its
+    heads-up display. They are not interchangeable.</p>
+  <table>
+    <tr><th>map</th><th>route + SDF</th><th>SDF only</th></tr>
+    <tr><td>ghost (one stale wall)</td><td>reached, +20%</td><td>reached, &minus;3%</td></tr>
+    <tr><td>unit (one moving mark)</td><td>reached, +13%</td><td>reached, &minus;2%</td></tr>
+    <tr><td>blocker (wall appears)</td><td>reached, +6%</td><td>reached, +237%</td></tr>
+    <tr><td>city (block topology)</td><td>reached, +15%</td><td>reached, +116%</td></tr>
+    <tr><td>traffic (moving obstacles)</td><td>reached, +3%</td><td>reached, +252%</td></tr>
+    <tr><td><b>Austin (real city)</b></td><td><b>reached</b>, +14%</td><td><b>never arrives</b></td></tr>
+  </table>
+  <p style="font-size:13px;color:var(--muted)">Percentages are driven distance against the
+    straight line. Same map, same seed, same controller — the route spine is the only
+    difference.</p>
+  <p class="note"><b>The direction flips with complexity.</b> On a map with a single obstacle
+    the route spine is a <i>tax</i>: the reactive controller goes nearly straight and beats
+    it by 2&ndash;3%. Once there is topology or motion it is worth 2&ndash;3.4x. On the real
+    city the reactive controller does not solve the problem at all — 941 m driven against a
+    1635 m straight line, sitting in a local minimum, never arriving. <b>Zero collisions in
+    every case, both ways</b>: the difference is whether it arrives, not whether it is safe.</p>
+</section>
+
+<section>
+  <h2><span class="n">05</span>Measured</h2>
+  <p>Read out of the recorded manifests when this page was generated, not transcribed.</p>
+  <table>
+<tr><th>run</th><th>vehicles</th><th>ticks</th><th>world</th><th>driven</th><th>map updates</th><th>faces seen</th><th>contacts</th></tr>
+<tr><td>eight vehicles</td><td>8</td><td>2970</td><td>178 s</td><td>11,459 m</td><td>4,962</td><td>5,904</td><td>0</td></tr>
+<tr><td>a convoy nobody told the formation</td><td>5</td><td>3200</td><td>192 s</td><td>9,248 m</td><td>3,871</td><td>1,740</td><td>22</td></tr>
+<tr><td>a pursuit where the quarry is a vehicle</td><td>8</td><td>3000</td><td>180 s</td><td>12,906 m</td><td>4,259</td><td>5,008</td><td>31</td></tr>
+</table>
+  <p class="note"><b>The convoy's contact count is real, and it is new.</b> Followers closing
+    on a vehicle they are chasing do touch it. That number could not have appeared before
+    this release: peers were being written into each other's world and then erased, every
+    tick, by the line that resets ground truth — so the squad was mutually invisible and a
+    vehicle-to-vehicle collision could not be counted even in principle. It is counted now.</p>
+</section>
+
+<section>
+  <h2><span class="n">06</span>What was built for this</h2>
+  <ul>
+    <li><b>A squad with private beliefs.</b> One scenario per agent over one shared truth.
+      Coverage is shared; knowledge is not.</li>
+    <li><b>Agents that are real to each other.</b> Peers are stamped into each other's ground
+      truth as a mask that survives the per-tick reset, so they occlude, are discovered by a
+      sensor ray, and are scored in collisions.</li>
+    <li><b>Targets that are other vehicles.</b> A goal can now be another agent, read live.
+      A scripted path cannot serve as a convoy leader or as prey, because where the vehicle
+      in front will be is not knowable in advance — it is reacting to a world it is still
+      discovering. Scripted targets also walked through buildings; vehicles route around them.</li>
+    <li><b>A camera that solves for the shot.</b> It searches bearings each frame and scores
+      them on whether the <i>vehicles</i> are visible, not on whether the line to their centre
+      is. Blocked rays fell from 52.0% to 9.3%, and the mean corrective climb from 69.2 m to
+      3.5 m — which is why it stays in the city instead of hanging above it.</li>
+    <li><b>Wall visibility by ray-casting the real mesh.</b> A post-pass over the finished
+      trace, so the simulation is untouched.</li>
+    <li><b>Vehicles that park.</b> Sitting on a goal, the direction to it is numerical noise,
+      so a vehicle used to pirouette on the spot. It now brakes and holds heading.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="n">07</span>Honest limits</h2>
+  <ul>
+    <li><b>Wall visibility is a rendering input, not something the agents knew.</b> The
+      planner's sensor is a 2-D ray cast over an occupancy raster and carries no height. The
+      mesh cast replays recorded positions under a stated sensor model to answer "which
+      surface was in view". No planning decision used it.</li>
+    <li><b>One agent in the dispersal scene stalls</b> 263.7 m short. Not a collision and not
+      a planner failure — the local controller gives up when the route keeps changing under
+      it. It is the one agent in the set that does not finish.</li>
+    <li><b>Real-time is not there yet.</b> The loop runs at 0.73 Hz for 8 agents on a 384&sup2;
+      grid. The gap to 30 Hz is 41x and is understood in detail: 93.6% of a tick is in three
+      functions, neither hot one is slow for algorithmic reasons, and a staged plan is
+      written up in the public repository's <code>docs/PERFORMANCE.md</code>.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="n">08</span>Run it yourself</h2>
+  <p>From the public GRL-SNAM repository. <b><code>pip install</code> on its own is not
+    enough</b>: the renderer binding <code>pycvc_gl</code> is a cvcpkg package and is not on
+    PyPI, so the dependency closure comes from the per-interpreter recipe in the repo. This is
+    what CI does.</p>
+  <pre>cvcpkg install cvc/grl-snam-cp311 --prefix ./deps
+source ./deps/bin/activate
+
+grl-snam fog all -o fog/            # the three synthetic stories
+
+# `finale` is newer than the published grl-snam-cp311 0.1.0+cvc.1. Until that
+# is republished, run it from a checkout on top of the same activated prefix:
+pip install -e . --no-deps          # the closure is already in the prefix
+grl-snam finale BUNDLE -o finale/   # the city-scale runs</pre>
+  <p style="font-size:13px;color:var(--muted)">Use the <code>-cp312</code> / <code>-cp313</code>
+    recipe and the matching <code>python3.1x</code> for those interpreters.</p>
+  <p>The simulation runs exactly once, in <code>record</code>. Every video, every live
+    window and every number quoted here replays that measured trace and recomputes nothing —
+    which is why the film cannot disagree with the run it claims to show.</p>
+</section>
+
+</div></div></body></html>
