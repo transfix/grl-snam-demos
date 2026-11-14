@@ -63,7 +63,7 @@ if [[ -n "$LEARN" ]]; then
   cp -R "$LEARN" "$OUT/learn"
 else
   sed -i '/<!-- learn:begin -->/,/<!-- learn:end -->/d' "$OUT/index.html"
-  rm -f "$OUT/img/learn.png"
+  rm -f "$OUT/img/learn.jpg"
 fi
 
 grl_sha="$(git -C "$GRL" rev-parse HEAD)"

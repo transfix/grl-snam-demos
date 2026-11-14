@@ -10,8 +10,8 @@ name: pages
 #      single-threaded build, since Pages sends no COOP/COEP headers, and the lean tier (no
 #      vtk-python). It is not on cvcpkg.org. About 30 minutes, so it is cached by libcvc's commit
 #      and that script.
-#   3. GRL-SNAM's pages/assemble.py writes the learn page: `grl-snam ariadne learn` on ariglx-web,
-#      with its ariadne.config.json and every file it preloads (the learning check's histories,
+#   3. GRL-SNAM's `pages/assemble.py --learn-only` writes the learn page: `grl-snam ariadne learn` on
+#      ariglx-web, with its ariadne.config.json and every file it preloads (LEARN_HISTORIES,
 #      gunzipped). Everything a page fetches is on the site's own origin: cvcpkg.org sends no CORS
 #      header for this one.
 #   4. tools/assemble.sh puts the site together: the landing page (site/), the July to August 2026
@@ -47,11 +47,17 @@ permissions:
   contents: read
 
 env:
-  # The upstream GRL-SNAM ref the site is built from.
-  GRL_SNAM_REF: main
+  # The upstream GRL-SNAM ref the site is built from. Until CVC-Lab/GRL-SNAM#177 (the pages/
+  # scripts) is on main, this pull request builds from its branch; it goes back to main before the
+  # merge.
+  GRL_SNAM_REF: feat/pages-ariglx-web
   # The libcvc tag ariglx-web is built from: the newest with cvcpkg/recipes/ariglx-web. Ariadne's
   # chart: widget (libcvc#1169) is not in it, so learn draws its curves as text.
   LIBCVC_REF: v3.7.13
+  # The histories the learn page shows, paths in the GRL-SNAM checkout (.jsonl or .jsonl.gz; their
+  # basenames differ, since learn labels each run by its file stem). Empty: assemble.py's default,
+  # the learning check's five retrain seeds (docs/learning-validation/retrain/seed*.history.jsonl.gz).
+  LEARN_HISTORIES: ''
   # 'yes' puts learn/ on the deployed site.
   PUBLISH_LEARN: 'no'
 
@@ -140,10 +146,11 @@ jobs:
         run: |
           learn=()
           if [ "${{ steps.src.outputs.learn }}" = true ]; then
-            # GRL-SNAM's assembly writes a whole site; this one takes its learn/ page.
+            hist=()
+            for h in $LEARN_HISTORIES; do hist+=("upstream/grl-snam/$h"); done
             "$PYTHON" upstream/grl-snam/pages/assemble.py --host ariglx-web/share/ariglx-web \
-              --out "$RUNNER_TEMP/grl-snam-site"
-            learn=(--learn "$RUNNER_TEMP/grl-snam-site/learn")
+              --learn-only --out "$RUNNER_TEMP/learn" ${hist[@]:+--histories "${hist[@]}"}
+            learn=(--learn "$RUNNER_TEMP/learn")
           fi
           bash tools/assemble.sh --out _site_full --grl-snam upstream/grl-snam \
             --libcvc upstream/libcvc "${learn[@]}"
@@ -158,8 +165,9 @@ jobs:
       - name: Run GRL-SNAM's learn checks on it
         if: steps.src.outputs.learn == 'true'
         run: |
+          # --no-landing: the landing page is this repo's, checked above.
           "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
-            --base /grl-snam-demos/ --shots shots/grl-snam
+            --base /grl-snam-demos/ --learn learn/ --no-landing --shots shots/grl-snam
 
       - name: The site to deploy
         run: |
