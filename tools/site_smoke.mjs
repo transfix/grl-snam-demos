@@ -5,6 +5,7 @@
 //
 //   node site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] [--shots DIR] [--external]
 //                       [--keep]
+//   node site_smoke.mjs --site DIR --serve PORT    (serve it only, to look at it in a browser)
 //
 // Cases:
 //   links      every page under the site, crawled from the landing page: each same-origin href,
@@ -38,9 +39,12 @@ const opt = name => {
 const SITE = opt('--site'), CHROME = opt('--chrome'), SHOTS = opt('--shots');
 const LEARN_EXPECT = opt('--learn-expect') ? new RegExp(opt('--learn-expect')) : null;
 const EXTERNAL = argv.includes('--external');
-if (!SITE || !CHROME || !fs.existsSync(path.join(SITE, 'index.html'))) {
+// --serve PORT: serve the site as the checks see it (http://127.0.0.1:PORT/grl-snam-demos/) and
+// run nothing, to look at it in a browser.
+const SERVE = opt('--serve');
+if (!SITE || !(CHROME || SERVE) || !fs.existsSync(path.join(SITE, 'index.html'))) {
   console.error('usage: site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] ' +
-                '[--shots DIR] [--external] [--keep]');
+                '[--shots DIR] [--external] [--keep]\n       site_smoke.mjs --site DIR --serve PORT');
   process.exit(2);
 }
 const BASE = '/grl-snam-demos/';
@@ -62,6 +66,11 @@ const strict = rel => rel === '' || rel === 'index.html' || rel.startsWith('lear
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = decodeURIComponent(url.pathname);
+  if (p === '/' || p === BASE.slice(0, -1)) {
+    res.writeHead(301, {Location: BASE});
+    res.end();
+    return;
+  }
   if (!p.startsWith(BASE) || p.includes('..')) {
     res.writeHead(404, {'Content-Type': 'text/plain'});
     res.end('not found');
@@ -89,9 +98,13 @@ const server = http.createServer((req, res) => {
   if (req.method === 'HEAD') return res.end();
   fs.createReadStream(f).pipe(res);
 });
-await new Promise(r => server.listen(0, '127.0.0.1', r));
+await new Promise(r => server.listen(Number(SERVE || 0), '127.0.0.1', r));
 const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 const ROOT = ORIGIN + BASE;
+if (SERVE) {
+  console.log(`serving ${SITE} at ${ROOT}`);
+  await new Promise(() => {});
+}
 
 const results = [];
 function report(name, ok, lines = []) {
