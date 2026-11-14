@@ -1,0 +1,230 @@
+name: pages
+
+# The GRL-SNAM site (https://transfix.github.io/grl-snam-demos/), built from CVC-Lab/GRL-SNAM's main
+# branch, which is authoritative, and deployed as a Pages artifact (nothing is committed to a
+# branch). The pattern is libcvc's deploy-pages.yml.
+#
+#   1. Check out GRL-SNAM (GRL_SNAM_REF) and libcvc at the pinned tag (LIBCVC_REF).
+#   2. Build libcvc's ariglx-web (CPython 3.12, pycvc, pycvc_gl and numpy in WebAssembly) with
+#      GRL-SNAM's pages/build-ariglx-web.sh, which runs the recipe's own build-wasm.sh: the
+#      single-threaded build, since Pages sends no COOP/COEP headers, and the lean tier (no
+#      vtk-python). It is not on cvcpkg.org. About 30 minutes, so it is cached by libcvc's commit
+#      and that script.
+#   3. GRL-SNAM's pages/assemble.py writes the learn page: `grl-snam ariadne learn` on ariglx-web,
+#      with its ariadne.config.json and every file it preloads (the learning check's histories,
+#      gunzipped). Everything a page fetches is on the site's own origin: cvcpkg.org sends no CORS
+#      header for this one.
+#   4. tools/assemble.sh puts the site together: the landing page (site/), the July to August 2026
+#      archive (archive/2026-08, as published), redirects from the archive pages' old URLs, the
+#      libcvc nav demos' thumbnails, and learn/.
+#   5. Headless Chrome loads it as Pages serves it: tools/site_smoke.mjs (every link and file, the
+#      landing page under a strict CSP, the archive and its redirects, learn/ running), then
+#      GRL-SNAM's own pages/smoke.mjs (learn starts, runs its frames and makes learn-report's
+#      claims in the page). Node, Chromium and Python come from cvcpkg's catalog.
+#   6. Pushes to main, the nightly run and Run workflow deploy it; pull requests stop after the
+#      checks and upload the screenshots.
+#
+# PUBLISH_LEARN says whether the deployed site has learn/. The page shows the learning check's
+# results, so it goes public only on Joe's word; until then the deployed site is the landing page
+# and the archive, and learn/ is still built and checked on every run. While GRL-SNAM has no pages/
+# scripts at GRL_SNAM_REF, the run builds the landing page and the archive alone, with a warning.
+#
+# Requires Settings -> Pages -> Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 9 * * *' # nightly, ~03:17 America/Chicago: GRL-SNAM's main moves on its own
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # The upstream GRL-SNAM ref the site is built from.
+  GRL_SNAM_REF: main
+  # The libcvc tag ariglx-web is built from: the newest with cvcpkg/recipes/ariglx-web. Ariadne's
+  # chart: widget (libcvc#1169) is not in it, so learn draws its curves as text.
+  LIBCVC_REF: v3.7.13
+  # 'yes' puts learn/ on the deployed site.
+  PUBLISH_LEARN: 'no'
+
+jobs:
+  build:
+    name: build and check the site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out CVC-Lab/GRL-SNAM at ${{ env.GRL_SNAM_REF }}
+        uses: actions/checkout@v4
+        with:
+          repository: CVC-Lab/GRL-SNAM
+          ref: ${{ env.GRL_SNAM_REF }}
+          path: upstream/grl-snam
+
+      - name: Check out libcvc at ${{ env.LIBCVC_REF }}
+        uses: actions/checkout@v4
+        with:
+          repository: transfix/libcvc
+          ref: ${{ env.LIBCVC_REF }}
+          path: upstream/libcvc
+
+      - name: What the site is built from
+        id: src
+        run: |
+          echo "grl_snam=$(git -C upstream/grl-snam rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "libcvc=$(git -C upstream/libcvc rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          learn=false
+          if [ -f upstream/grl-snam/pages/build-ariglx-web.sh ] && [ -f upstream/grl-snam/pages/assemble.py ]; then
+            learn=true
+          else
+            echo "::warning::GRL-SNAM ${GRL_SNAM_REF} has no pages/ scripts: the site is built without learn/"
+          fi
+          echo "learn=$learn" >> "$GITHUB_OUTPUT"
+          git -C upstream/grl-snam log -1 --format='GRL-SNAM %h %s'
+          git -C upstream/libcvc log -1 --format='libcvc %h %s'
+
+      - name: Install cvcpkg, then Python, Node and headless Chromium from the catalog
+        run: |
+          curl -fsSL https://cvcpkg.org/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          T="$RUNNER_TEMP/tools"
+          cvcpkg install python312 nodejs22 playwright-chromium-headless-shell --platform linux \
+            --prefix "$T" --config release --link shared --no-fallback-to-source
+          chrome=$(ls "$T"/share/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell)
+          "$chrome" --version
+          "$T/bin/node" --version
+          "$T/bin/python3.12" --version
+          {
+            echo "CHROME=$chrome"
+            echo "NODE=$T/bin/node"
+            echo "PYTHON=$T/bin/python3.12"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore ariglx-web
+        if: steps.src.outputs.learn == 'true'
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ariglx-web
+          key: ariglx-web-wasm-lean-${{ steps.src.outputs.libcvc }}-${{ hashFiles('upstream/grl-snam/pages/build-ariglx-web.sh') }}
+
+      - name: Build ariglx-web (wasm, lean) with its recipe's script
+        if: steps.src.outputs.learn == 'true' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          bash upstream/grl-snam/pages/build-ariglx-web.sh upstream/libcvc "$RUNNER_TEMP/ariglx-web-work" ariglx-web
+          rm -rf "$RUNNER_TEMP/ariglx-web-work"
+
+      - name: Save ariglx-web
+        # Saved now rather than at the end of the job, so a failed check does not cost the next
+        # run the build.
+        if: steps.src.outputs.learn == 'true' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ariglx-web
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Assemble the site
+        run: |
+          learn=()
+          if [ "${{ steps.src.outputs.learn }}" = true ]; then
+            # GRL-SNAM's assembly writes a whole site; this one takes its learn/ page.
+            "$PYTHON" upstream/grl-snam/pages/assemble.py --host ariglx-web/share/ariglx-web \
+              --out "$RUNNER_TEMP/grl-snam-site"
+            learn=(--learn "$RUNNER_TEMP/grl-snam-site/learn")
+          fi
+          bash tools/assemble.sh --out _site_full --grl-snam upstream/grl-snam \
+            --libcvc upstream/libcvc "${learn[@]}"
+          cat _site_full/build.json
+
+      - name: Load the site in headless Chrome
+        run: |
+          "$NODE" tools/site_smoke.mjs --site _site_full --chrome "$CHROME" --shots shots --external
+
+      - name: Run GRL-SNAM's learn checks on it
+        if: steps.src.outputs.learn == 'true'
+        run: |
+          "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
+            --base /grl-snam-demos/ --shots shots/grl-snam
+
+      - name: The site to deploy
+        run: |
+          if [ "$PUBLISH_LEARN" = yes ] || [ ! -d _site_full/learn ]; then
+            mv _site_full _site
+          else
+            # learn/ stays off the public site until it is published: the landing page and the
+            # archive alone, checked again.
+            bash tools/assemble.sh --out _site --grl-snam upstream/grl-snam --libcvc upstream/libcvc
+            "$NODE" tools/site_smoke.mjs --site _site --chrome "$CHROME"
+          fi
+          du -sh _site
+          {
+            echo "### The site"
+            echo
+            echo "- GRL-SNAM: \`${{ steps.src.outputs.grl_snam }}\` (${GRL_SNAM_REF})"
+            echo "- libcvc: \`${{ steps.src.outputs.libcvc }}\` (${LIBCVC_REF})"
+            echo "- learn/ built: ${{ steps.src.outputs.learn }}; published: $([ -d _site/learn ] && echo yes || echo no)"
+            echo "- size: $(du -sh _site | cut -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-screenshots
+          path: shots
+          if-no-files-found: ignore
+
+      - name: Upload the Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write # deploy the Pages artifact
+      id-token: write # the OIDC token actions/deploy-pages verifies the deploy with
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify live
+        # A deploy can take a few minutes to reach the Pages CDN: poll the files this build put
+        # there (its build.json names its commit) before failing.
+        env:
+          URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          for i in $(seq 1 24); do
+            got=$(curl -fsS "${URL}build.json" 2>/dev/null | grep -o '"site": "[0-9a-f]*"' || true)
+            if [ "$got" = "\"site\": \"${GITHUB_SHA}\"" ] &&
+               curl -fsSI "${URL}archive/2026-08/" >/dev/null &&
+               curl -fsSI "${URL}img/nav_city_swarm.jpg" >/dev/null; then
+              echo "live: ${URL} (${got})"
+              if curl -fsSI "${URL}learn/ariglx.wasm" >/dev/null 2>&1; then echo "learn/ is live"; fi
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::${URL} does not serve this build after 6 minutes"
+          exit 1

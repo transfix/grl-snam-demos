@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRL-SNAM</title>
+<meta name="description" content="GRL-SNAM: geometric reinforcement learning for navigation and mapping. Figures, demos that run in the browser, and the July to August 2026 deliverables.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <h1>GRL-SNAM</h1>
+  <div class="ornament"><span class="dot"></span><span class="line"></span><span class="diamond"></span><span class="line"></span><span class="dot"></span></div>
+  <p class="tagline">Geometric reinforcement learning for navigation and mapping: a navigator that drives on a
+  signed-distance field built from raw city geometry, with an energy-based policy over its coefficients.</p>
+  <p class="authors">The CVC Lab, UT Austin &nbsp;·&nbsp; Joe Rivera, CyberPC Angel, LLC</p>
+  <div class="actions">
+    <a class="btn" href="https://github.com/CVC-Lab/GRL-SNAM">Source on GitHub</a>
+    <a class="btn ghost" href="https://github.com/CVC-Lab/GRL-SNAM/blob/main/docs/developer-guide.md">Developer guide</a>
+    <a class="btn ghost" href="#browser">Run it in your browser</a>
+  </div>
+
+  <h2 id="figures">Figures</h2>
+  <div class="figures">
+    <figure>
+      <a href="archive/2026-08/assets/grl_freedrive_hud.png"><img src="archive/2026-08/assets/grl_freedrive_hud.png" alt="The SDF navigator's live HUD over Austin geometry" loading="lazy"></a>
+      <figcaption><b>One command, whole pipeline.</b> <code>grl-snam pipeline</code> takes a terrain and
+      building bundle through SDF construction and training to a multi-goal free-drive over Austin, with a
+      live HUD of the coefficients α β γ, clearance and speed.</figcaption>
+    </figure>
+    <figure>
+      <a href="archive/2026-08/assets/fog_ghost_c.png"><img src="archive/2026-08/assets/fog_ghost_c.png" alt="Fog of war: the sensor clears a wall the belief map still had" loading="lazy"></a>
+      <figcaption><b>The map is a belief.</b> The planner drives on a belief map that a ray-cast sensor
+      updates; here it clears a wall that is no longer there, and the route replans mid-drive.</figcaption>
+    </figure>
+    <figure>
+      <a href="archive/2026-08/assets/city_pursuit.png"><img src="archive/2026-08/assets/city_pursuit.png" alt="Eight vehicles in a pursuit over Austin at night" loading="lazy"></a>
+      <figcaption><b>Squads at city scale.</b> Eight vehicles in one Austin scene, each with its own belief,
+      route and distance field; goals can be other vehicles, read live.</figcaption>
+    </figure>
+  </div>
+
+  <h2 id="browser">In your browser</h2>
+  <p class="lede">These pages run the code itself, compiled to WebAssembly: nothing is installed, and every
+  file they load comes from this site.</p>
+  <div class="cards">
+<!-- learn:begin -->
+    <div class="card feature">
+      <a class="thumb" href="learn/"><img src="img/learn.png" alt="The learn port's windows: held-out curves, checkpoints, arms and claims"></a>
+      <div class="body">
+        <div class="tag">Python in the page · grl-snam ariadne learn</div>
+        <h3>Did it learn? The learning instruments, live</h3>
+        <p>GRL-SNAM's own <code>grl-snam ariadne learn</code>, running in the page on CPython 3.12, numpy
+        and libcvc's Ariadne (<code>ariglx-web</code>). It reads the training histories of GRL-SNAM's
+        <a href="https://github.com/CVC-Lab/GRL-SNAM/blob/main/docs/learning-validation.md">learning check</a>
+        and shows the held-out curves with their marks, the checkpoints, the trained, untrained and
+        constant arms, and <code>learn-report</code>'s claims, each pass or fail.</p>
+        <p class="note">The first visit downloads about 28 MB; later visits come from the browser's cache.</p>
+        <div class="go"><a class="btn" href="learn/">Open the learn window</a></div>
+      </div>
+    </div>
+<!-- learn:end -->
+    <div class="card">
+      <a class="thumb" href="https://transfix.github.io/libcvc/nav_city_swarm/"><img src="img/nav_city_swarm.jpg" alt="800 agents navigating a city block grid" loading="lazy"></a>
+      <div class="body">
+        <div class="tag">C++ · libcvc cvc::nav</div>
+        <h3>City swarm</h3>
+        <p>800 vehicles cross a foggy city with no global plan, on GRL-SNAM's published coefficient net
+        (<code>coef_sdf.cvcnav</code>) and libcvc's C++ navigator. Tune agents, fog and belief live.</p>
+        <div class="go"><a class="btn ghost" href="https://transfix.github.io/libcvc/nav_city_swarm/">Open</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <a class="thumb" href="https://transfix.github.io/libcvc/nav_city_drive/"><img src="img/nav_city_drive.jpg" alt="Convoys over downtown Austin, with the minimap" loading="lazy"></a>
+      <div class="body">
+        <div class="tag">C++ · libcvc cvc::nav</div>
+        <h3>City drive</h3>
+        <p>A few dozen vehicles in colour-coded convoys thread downtown Austin to six rally points with no
+        global plan. Drag a rally point to re-route a convoy live.</p>
+        <div class="go"><a class="btn ghost" href="https://transfix.github.io/libcvc/nav_city_drive/">Open</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <a class="thumb" href="https://transfix.github.io/libcvc/nav_fog_ghost/"><img src="img/nav_fog_ghost.jpg" alt="The fog-of-war ghost story: the sensor sees nothing and the route replans" loading="lazy"></a>
+      <div class="body">
+        <div class="tag">C++ · libcvc cvc::nav</div>
+        <h3>Fog of war: the ghost wall</h3>
+        <p>A vehicle detours a phantom wall its stale map shows, then erases it cell by cell as its sensor
+        clears the ground; a second scenario has a vehicle crossing its path.</p>
+        <div class="go"><a class="btn ghost" href="https://transfix.github.io/libcvc/nav_fog_ghost/">Open</a></div>
+      </div>
+    </div>
+  </div>
+  <p class="note">More WebAssembly demos are in <a href="https://transfix.github.io/libcvc/">libcvc's gallery</a>.</p>
+
+  <h2 id="archive">Archive: July to August 2026</h2>
+  <p class="lede">The first three demo deliverables, kept as they were published on 2026-08-14. Each page's
+  films play inline, and every number on them replays from a recorded trace.</p>
+  <div class="cards compact">
+    <div class="card">
+      <div class="body">
+        <div class="tag">2026-07-27</div>
+        <h3>The CLI and live-metrics demo</h3>
+        <p>A raw world model to a rendered multi-goal free-drive with a live HUD, in one command.</p>
+        <div class="go"><a class="btn ghost" href="archive/2026-08/2026-07-grl-snam-cli-demo/">Open</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="body">
+        <div class="tag">2026-08-12</div>
+        <h3>Fog of war: the map is a belief</h3>
+        <p>A ghost wall, a mid-drive blocker and a moving unit, each scored against the truth.</p>
+        <div class="go"><a class="btn ghost" href="archive/2026-08/2026-08-fog-of-war-nav/">Open</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="body">
+        <div class="tag">2026-08-13</div>
+        <h3>Squads at city scale</h3>
+        <p>A convoy, a pursuit and an eight-vehicle rendezvous, with private beliefs and live targets.</p>
+        <div class="go"><a class="btn ghost" href="archive/2026-08/2026-08-fog-of-war-at-city-scale/">Open</a></div>
+      </div>
+    </div>
+  </div>
+  <p class="note"><a href="archive/2026-08/">The August project page and poster</a>, as published.</p>
+
+  <div class="foot">
+    <p>Built from <a href="https://github.com/CVC-Lab/GRL-SNAM/tree/@GRL_SNAM_SHA@">CVC-Lab/GRL-SNAM@@GRL_SNAM_SHORT@</a>
+    and <a href="https://github.com/transfix/libcvc/tree/@LIBCVC_REF@">libcvc @LIBCVC_REF@</a> on @BUILT@ ·
+    <a href="https://github.com/transfix/grl-snam-demos">site source</a></p>
+    <p>Geometry © OpenStreetMap contributors (ODbL) · terrain SRTM (US public domain)</p>
+  </div>
+
+</div>
+</body>
+</html>
