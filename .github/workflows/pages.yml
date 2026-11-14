@@ -151,7 +151,9 @@ jobs:
 
       - name: Load the site in headless Chrome
         run: |
-          "$NODE" tools/site_smoke.mjs --site _site_full --chrome "$CHROME" --shots shots --external
+          # GRL-SNAM's launcher (pages/main.py) says on stderr when the port is running.
+          "$NODE" tools/site_smoke.mjs --site _site_full --chrome "$CHROME" --shots shots --external \
+            --learn-expect '^grl-snam: learn: running'
 
       - name: Run GRL-SNAM's learn checks on it
         if: steps.src.outputs.learn == 'true'
