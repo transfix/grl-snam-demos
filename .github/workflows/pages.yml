@@ -11,23 +11,27 @@ name: pages
 #      vtk-python). It is not on cvcpkg.org. About 30 minutes, so it is cached by libcvc's commit
 #      and that script.
 #   3. GRL-SNAM's `pages/assemble.py --learn-only` writes the learn page: `grl-snam ariadne learn` on
-#      ariglx-web, with its ariadne.config.json and every file it preloads (LEARN_HISTORIES,
-#      gunzipped). Everything a page fetches is on the site's own origin: cvcpkg.org sends no CORS
-#      header for this one.
+#      ariglx-web, with its ariadne.config.json and every file it preloads (LEARN_HISTORIES).
+#      `--scrub-only` writes the scrub page: `grl-snam ariadne scrub --view` on the learning
+#      check's three retrains, every checkpoint deployed here, natively (that needs torch and
+#      libcvc's sim_world: GRL-SNAM's cvcpkg closure, grl-snam-cp312, and the checkpoints from the
+#      cvcpkg package grl-snam-learning-checkpoints; the runs are cached). Everything a page fetches
+#      is on the site's own origin: cvcpkg.org sends no CORS header for this one.
 #   4. tools/assemble.sh puts the site together: the landing page (site/), the July to August 2026
 #      archive (archive/2026-08, as published), redirects from the archive pages' old URLs, the
-#      libcvc nav demos' thumbnails, and learn/.
+#      libcvc nav demos' thumbnails, learn/ and scrub/.
 #   5. Headless Chrome loads it as Pages serves it: tools/site_smoke.mjs (every link and file, the
-#      landing page under a strict CSP, the archive and its redirects, learn/ running), then
-#      GRL-SNAM's own pages/smoke.mjs (learn starts, runs its frames and makes learn-report's
-#      claims in the page). Node, Chromium and Python come from cvcpkg's catalog.
+#      landing page under a strict CSP, the archive and its redirects, learn/ and scrub/ running),
+#      then GRL-SNAM's own pages/smoke.mjs (learn starts, runs its frames and makes learn-report's
+#      claims in the page; scrub starts and shows a checkpoint of the runs deployed here). Node,
+#      Chromium and Python come from cvcpkg's catalog.
 #   6. Pushes to main, the nightly run and Run workflow deploy it; pull requests stop after the
 #      checks and upload the screenshots.
 #
-# PUBLISH_LEARN says whether the deployed site has learn/. The page shows the learning check's
-# results, so it goes public only on Joe's word; until then the deployed site is the landing page
-# and the archive, and learn/ is still built and checked on every run. While GRL-SNAM has no pages/
-# scripts at GRL_SNAM_REF, the run builds the landing page and the archive alone, with a warning.
+# PUBLISH_LEARN and PUBLISH_SCRUB say whether the deployed site has learn/ and scrub/. The pages
+# show the learning check's results, so they go public only on Joe's word (both given); a page not
+# published is still built and checked on every run. While GRL-SNAM has no pages/ scripts at
+# GRL_SNAM_REF, the run builds the landing page and the archive alone, with a warning.
 #
 # Requires Settings -> Pages -> Source = "GitHub Actions".
 
@@ -47,10 +51,8 @@ permissions:
   contents: read
 
 env:
-  # The upstream GRL-SNAM ref the site is built from. Until CVC-Lab/GRL-SNAM#177 (the pages/
-  # scripts) is on main, this pull request builds from its branch; it goes back to main before the
-  # merge.
-  GRL_SNAM_REF: feat/pages-ariglx-web
+  # The upstream GRL-SNAM ref the site is built from: main, which is authoritative.
+  GRL_SNAM_REF: main
   # The libcvc tag ariglx-web is built from: the newest with cvcpkg/recipes/ariglx-web. Ariadne's
   # chart: widget (libcvc#1169) is not in it, so learn draws its curves as text.
   LIBCVC_REF: v3.7.13
@@ -58,8 +60,10 @@ env:
   # basenames differ, since learn labels each run by its file stem). Empty: assemble.py's default,
   # the learning check's five retrain seeds (docs/learning-validation/retrain/seed*.history.jsonl.gz).
   LEARN_HISTORIES: ''
-  # 'yes' puts learn/ on the deployed site.
-  PUBLISH_LEARN: 'no'
+  # 'yes' puts learn/ on the deployed site (Joe, 2026-11-14: the five retrain seeds as they are).
+  PUBLISH_LEARN: 'yes'
+  # 'yes' puts scrub/ on the deployed site (Joe, 2026-11-15).
+  PUBLISH_SCRUB: 'yes'
 
 jobs:
   build:
@@ -98,6 +102,11 @@ jobs:
             echo "::warning::GRL-SNAM ${GRL_SNAM_REF} has no pages/ scripts: the site is built without learn/"
           fi
           echo "learn=$learn" >> "$GITHUB_OUTPUT"
+          scrub=false
+          if [ "$learn" = true ] && grep -q -- '--scrub-only' upstream/grl-snam/pages/assemble.py; then
+            scrub=true
+          fi
+          echo "scrub=$scrub" >> "$GITHUB_OUTPUT"
           git -C upstream/grl-snam log -1 --format='GRL-SNAM %h %s'
           git -C upstream/libcvc log -1 --format='libcvc %h %s'
 
@@ -142,41 +151,84 @@ jobs:
           path: ariglx-web
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      - name: Assemble the site
+      # The scrub page's runs are deployed here: grl_snam's closure (torch, pycvc-gl) from cvcpkg,
+      # as GRL-SNAM's own CI installs it, and the learning check's checkpoints (not in any repo).
+      - name: Install grl_snam's closure via cvcpkg (to deploy the scrub page's runs)
+        if: steps.src.outputs.scrub == 'true'
+        id: deps
+        uses: transfix/libcvc-deps/.github/actions/cvcpkg-install@master
+        with:
+          recipe: upstream/grl-snam/cvcpkg/recipes/grl-snam-cp312
+          build_type: Release
+
+      - name: Install the learning check's checkpoints (grl-snam-learning-checkpoints)
+        if: steps.src.outputs.scrub == 'true'
         run: |
-          learn=()
+          cvcpkg install grl-snam-learning-checkpoints --prefix "$RUNNER_TEMP/checkpoints" \
+            --platform any --config release --link shared --no-fallback-to-source
+          echo "CHECKPOINTS=$RUNNER_TEMP/checkpoints/share/grl-snam-learning-checkpoints" >> "$GITHUB_ENV"
+
+      - name: Cache the scrub page's runs
+        if: steps.src.outputs.scrub == 'true'
+        uses: actions/cache@v4
+        with:
+          path: scrub-runs
+          key: scrub-runs-${{ hashFiles('upstream/grl-snam/grl_snam/**', 'upstream/grl-snam/docs/learning-validation/**', 'upstream/grl-snam/cvcpkg/recipes/grl-snam-learning-checkpoints/**') }}
+
+      - name: Assemble the site
+        env:
+          PREFIX: ${{ steps.deps.outputs.path }}
+        run: |
+          set -euo pipefail
+          pages=()
           if [ "${{ steps.src.outputs.learn }}" = true ]; then
             hist=()
             for h in $LEARN_HISTORIES; do hist+=("upstream/grl-snam/$h"); done
             "$PYTHON" upstream/grl-snam/pages/assemble.py --host ariglx-web/share/ariglx-web \
               --learn-only --out "$RUNNER_TEMP/learn" ${hist[@]:+--histories "${hist[@]}"}
-            learn=(--learn "$RUNNER_TEMP/learn")
+            pages+=(--learn "$RUNNER_TEMP/learn")
+          fi
+          if [ "${{ steps.src.outputs.scrub }}" = true ]; then
+            test -n "$PREFIX" || { echo "::error::no grl-snam-cp312 closure"; exit 1; }
+            "$PYTHON" upstream/grl-snam/pages/assemble.py --host ariglx-web/share/ariglx-web \
+              --scrub-only --out "$RUNNER_TEMP/scrub" --python "$PREFIX/bin/python3.12" \
+              --checkpoints "$CHECKPOINTS" --scrub-cache scrub-runs
+            pages+=(--scrub "$RUNNER_TEMP/scrub")
           fi
           bash tools/assemble.sh --out _site_full --grl-snam upstream/grl-snam \
-            --libcvc upstream/libcvc "${learn[@]}"
-          cat _site_full/build.json
+            --libcvc upstream/libcvc "${pages[@]}"
+          python3 -c "import json; b = json.load(open('_site_full/build.json')); print({k: v for k, v in b.items() if k not in ('learn', 'scrub')})"
 
       - name: Load the site in headless Chrome
         run: |
           # GRL-SNAM's launcher (pages/main.py) says on stderr when the port is running.
           "$NODE" tools/site_smoke.mjs --site _site_full --chrome "$CHROME" --shots shots --external \
-            --learn-expect '^grl-snam: learn: running'
+            --learn-expect '^grl-snam: learn: running' --scrub-expect '^grl-snam: scrub: running'
 
-      - name: Run GRL-SNAM's learn checks on it
+      - name: Run GRL-SNAM's learn and scrub checks on it
         if: steps.src.outputs.learn == 'true'
         run: |
           # --no-landing: the landing page is this repo's, checked above.
+          scrub=()
+          if [ -d _site_full/scrub ]; then scrub=(--scrub scrub/); fi
           "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
-            --base /grl-snam-demos/ --learn learn/ --no-landing --shots shots/grl-snam
+            --base /grl-snam-demos/ --learn learn/ "${scrub[@]}" --no-landing --shots shots/grl-snam
 
       - name: The site to deploy
         run: |
-          if [ "$PUBLISH_LEARN" = yes ] || [ ! -d _site_full/learn ]; then
+          held=0 pub=()
+          if [ -d _site_full/learn ]; then
+            if [ "$PUBLISH_LEARN" = yes ]; then pub+=(--learn "$RUNNER_TEMP/learn"); else held=1; fi
+          fi
+          if [ -d _site_full/scrub ]; then
+            if [ "$PUBLISH_SCRUB" = yes ]; then pub+=(--scrub "$RUNNER_TEMP/scrub"); else held=1; fi
+          fi
+          if [ "$held" = 0 ]; then
             mv _site_full _site
           else
-            # learn/ stays off the public site until it is published: the landing page and the
-            # archive alone, checked again.
-            bash tools/assemble.sh --out _site --grl-snam upstream/grl-snam --libcvc upstream/libcvc
+            # A page not published stays off the public site: the rest, checked again.
+            bash tools/assemble.sh --out _site --grl-snam upstream/grl-snam --libcvc upstream/libcvc \
+              "${pub[@]}"
             "$NODE" tools/site_smoke.mjs --site _site --chrome "$CHROME"
           fi
           du -sh _site
@@ -186,6 +238,7 @@ jobs:
             echo "- GRL-SNAM: \`${{ steps.src.outputs.grl_snam }}\` (${GRL_SNAM_REF})"
             echo "- libcvc: \`${{ steps.src.outputs.libcvc }}\` (${LIBCVC_REF})"
             echo "- learn/ built: ${{ steps.src.outputs.learn }}; published: $([ -d _site/learn ] && echo yes || echo no)"
+            echo "- scrub/ built: ${{ steps.src.outputs.scrub }}; published: $([ -d _site/scrub ] && echo yes || echo no)"
             echo "- size: $(du -sh _site | cut -f1)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -232,6 +285,7 @@ jobs:
                curl -fsSI "${URL}img/nav_city_swarm.jpg" >/dev/null; then
               echo "live: ${URL} (${got})"
               if curl -fsSI "${URL}learn/ariglx.wasm" >/dev/null 2>&1; then echo "learn/ is live"; fi
+              if curl -fsSI "${URL}scrub/ariglx.wasm" >/dev/null 2>&1; then echo "scrub/ is live"; fi
               exit 0
             fi
             sleep 15

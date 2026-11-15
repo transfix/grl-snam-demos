@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/assemble.sh — the site as Pages serves it, in one directory:
 #
-#   tools/assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR]
+#   tools/assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]
 #
 #   /                 site/ (the landing page), its provenance filled in from the two checkouts
 #   /archive/2026-08/ the August site, as published on 2026-08-14 (archive/2026-08, unchanged)
@@ -10,25 +10,29 @@
 #   /learn/           --learn: the learn page GRL-SNAM's pages/ scripts assembled (ariglx-web, its
 #                     ariadne.config.json and every preload). Without it the landing page's learn
 #                     card is left out, so the site has no link to a page it does not have.
+#   /scrub/           --scrub: the scrub page, the same way (`grl-snam ariadne scrub --view` on the
+#                     runs GRL-SNAM's pages/assemble.py deployed); without it, no scrub card.
 #   /build.json       which commits the site was built from
 #
 # --grl-snam is a CVC-Lab/GRL-SNAM checkout, --libcvc a transfix/libcvc checkout (the pinned tag).
 set -euo pipefail
 
-usage() { echo "usage: assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR]" >&2; exit 2; }
-OUT= GRL= LIBCVC= LEARN=
+usage() { echo "usage: assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]" >&2; exit 2; }
+OUT= GRL= LIBCVC= LEARN= SCRUB=
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
     --grl-snam) GRL="$2"; shift 2 ;;
     --libcvc) LIBCVC="$2"; shift 2 ;;
     --learn) LEARN="$2"; shift 2 ;;
+    --scrub) SCRUB="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
 [[ -n "$OUT" && -n "$GRL" && -n "$LIBCVC" ]] || usage
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -z "$LEARN" || -f "$LEARN/index.html" ]] || { echo "assemble: $LEARN has no index.html" >&2; exit 1; }
+[[ -z "$SCRUB" || -f "$SCRUB/index.html" ]] || { echo "assemble: $SCRUB has no index.html" >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/img"
@@ -65,6 +69,12 @@ else
   sed -i '/<!-- learn:begin -->/,/<!-- learn:end -->/d' "$OUT/index.html"
   rm -f "$OUT/img/learn.jpg"
 fi
+if [[ -n "$SCRUB" ]]; then
+  cp -R "$SCRUB" "$OUT/scrub"
+else
+  sed -i '/<!-- scrub:begin -->/,/<!-- scrub:end -->/d' "$OUT/index.html"
+  rm -f "$OUT/img/scrub.jpg"
+fi
 
 grl_sha="$(git -C "$GRL" rev-parse HEAD)"
 libcvc_sha="$(git -C "$LIBCVC" rev-parse HEAD)"
@@ -79,9 +89,12 @@ if grep -q '@[A-Z_]*@' "$OUT/index.html"; then
   exit 1
 fi
 
-learn_json=null
+learn_json=null scrub_json=null
 if [[ -n "$LEARN" && -f "$LEARN/ariadne.config.json" ]]; then
   learn_json="$(cat "$LEARN/ariadne.config.json")"
+fi
+if [[ -n "$SCRUB" && -f "$SCRUB/ariadne.config.json" ]]; then
+  scrub_json="$(cat "$SCRUB/ariadne.config.json")"
 fi
 cat > "$OUT/build.json" <<EOF
 {
@@ -89,8 +102,9 @@ cat > "$OUT/build.json" <<EOF
   "site": "$site_sha",
   "grl_snam": "$grl_sha",
   "libcvc": {"ref": "$libcvc_ref", "sha": "$libcvc_sha"},
-  "learn": $learn_json
+  "learn": $learn_json,
+  "scrub": $scrub_json
 }
 EOF
 touch "$OUT/.nojekyll"
-echo "assemble: $OUT ($(du -sh "$OUT" | cut -f1)); learn page: ${LEARN:-none}"
+echo "assemble: $OUT ($(du -sh "$OUT" | cut -f1)); learn page: ${LEARN:-none}; scrub page: ${SCRUB:-none}"

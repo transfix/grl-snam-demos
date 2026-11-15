@@ -3,8 +3,8 @@
 // directory named without its slash, and no COOP/COEP headers. Modelled on libcvc's
 // src/arigl/web/test/arigl_web_smoke.mjs.
 //
-//   node site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] [--shots DIR] [--external]
-//                       [--keep]
+//   node site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] [--scrub-expect REGEX]
+//                       [--shots DIR] [--external] [--keep]
 //   node site_smoke.mjs --site DIR --serve PORT    (serve it only, to look at it in a browser)
 //
 // Cases:
@@ -21,6 +21,9 @@
 //              and, with --learn-expect, a line it printed matches REGEX. Served under the same
 //              strict CSP, whose connect-src 'self' also says the page loaded nothing from another
 //              origin. --shots: learn.png.
+//   scrub      when the site has scrub/: the same for the scrub page (grl-snam ariadne scrub
+//              --view on the runs deployed when the site was built), with --scrub-expect.
+//              --shots: scrub.png.
 //
 // Chrome is driven over the DevTools protocol (Node 22's fetch and WebSocket, no other
 // dependency). Exit status 0 when every case passes.
@@ -38,17 +41,20 @@ const opt = name => {
 };
 const SITE = opt('--site'), CHROME = opt('--chrome'), SHOTS = opt('--shots');
 const LEARN_EXPECT = opt('--learn-expect') ? new RegExp(opt('--learn-expect')) : null;
+const SCRUB_EXPECT = opt('--scrub-expect') ? new RegExp(opt('--scrub-expect')) : null;
 const EXTERNAL = argv.includes('--external');
 // --serve PORT: serve the site as the checks see it (http://127.0.0.1:PORT/grl-snam-demos/) and
 // run nothing, to look at it in a browser.
 const SERVE = opt('--serve');
 if (!SITE || !(CHROME || SERVE) || !fs.existsSync(path.join(SITE, 'index.html'))) {
   console.error('usage: site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] ' +
-                '[--shots DIR] [--external] [--keep]\n       site_smoke.mjs --site DIR --serve PORT');
+                '[--scrub-expect REGEX] [--shots DIR] [--external] [--keep]\n' +
+                '       site_smoke.mjs --site DIR --serve PORT');
   process.exit(2);
 }
 const BASE = '/grl-snam-demos/';
 const HAS_LEARN = fs.existsSync(path.join(SITE, 'learn', 'index.html'));
+const HAS_SCRUB = fs.existsSync(path.join(SITE, 'scrub', 'index.html'));
 const TIMEOUT_MS = Number(process.env.SITE_SMOKE_TIMEOUT_MS || 240000);
 
 const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; " +
@@ -59,9 +65,10 @@ const TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
                '.txt': 'text/plain', '.md': 'text/markdown', '.ari': 'text/plain', '.py': 'text/plain',
                '.zip': 'application/zip', '.data': 'application/octet-stream',
                '.gz': 'application/gzip', '.jsonl': 'application/json'};
-// The pages the strict CSP applies to: the landing page and the learn page (the archive's pages
-// carry their style inline, as published).
-const strict = rel => rel === '' || rel === 'index.html' || rel.startsWith('learn/');
+// The pages the strict CSP applies to: the landing page, the learn page and the scrub page (the
+// archive's pages carry their style inline, as published).
+const strict = rel => rel === '' || rel === 'index.html' || rel.startsWith('learn/') ||
+                      rel.startsWith('scrub/');
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -287,12 +294,14 @@ for (const d of fs.readdirSync(path.join(SITE, 'archive', '2026-08')).filter(d =
   await page.close();
 }
 
-if (HAS_LEARN) {
-  const page = await openPage(ROOT + 'learn/');
+// A port's ariglx-web page (learn/, scrub/): it runs its document (window.ariadneWeb's state is
+// running, no traceback), with no CSP violation and, with an expect REGEX, a line it printed matches.
+async function checkPort(dir, expect, title) {
+  const page = await openPage(ROOT + dir + '/');
   const start = Date.now();
   let v, runningMs = 0;
   const check = x => x.state === 'running' && !x.log.some(l => /Traceback/.test(l)) &&
-                     (!LEARN_EXPECT || x.log.some(l => LEARN_EXPECT.test(l)));
+                     (!expect || x.log.some(l => expect.test(l)));
   for (;;) {
     const s = await page.evaluate(
         'JSON.stringify(window.ariadneWeb ? {state: ariadneWeb.state, log: ariadneWeb.log,' +
@@ -308,7 +317,7 @@ if (HAS_LEARN) {
   const lines = [`state ${v ? v.state : 'none'}` +
                  (runningMs ? `, running after ${(runningMs / 1000).toFixed(1)} s` : '')];
   if (v) {
-    if (LEARN_EXPECT) lines.push(...v.log.filter(l => LEARN_EXPECT.test(l)).map(l => '> ' + l));
+    if (expect) lines.push(...v.log.filter(l => expect.test(l)).map(l => '> ' + l));
     for (const w of v.warnings) lines.push('warning: ' + w);
     for (const c of v.csp) lines.push('CSP violation: ' + c);
     if (!ok) {
@@ -320,11 +329,14 @@ if (HAS_LEARN) {
   }
   if (SHOTS) {
     await sleep(4000);  // a few frames past the load
-    if (!await page.screenshot(path.join(SHOTS, 'learn.png'))) lines.push('no screenshot');
+    if (!await page.screenshot(path.join(SHOTS, `${dir}.png`))) lines.push('no screenshot');
   }
-  report('learn: the ariglx-web page runs grl-snam ariadne learn', ok, lines);
+  report(title, ok, lines);
   await page.close();
 }
+
+if (HAS_LEARN) await checkPort('learn', LEARN_EXPECT, 'learn: the ariglx-web page runs grl-snam ariadne learn');
+if (HAS_SCRUB) await checkPort('scrub', SCRUB_EXPECT, 'scrub: the ariglx-web page runs grl-snam ariadne scrub');
 
 async function closeChrome() {
   if (chrome.exitCode !== null || chrome.signalCode !== null) return;
