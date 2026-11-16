@@ -26,8 +26,9 @@ on its own), on Run workflow, and on pull requests (checks only, no deploy):
    build, which needs no COOP/COEP headers; cached by libcvc's commit);
 3. GRL-SNAM's `pages/assemble.py` writes the learn page and the scrub page, and
    [`tools/assemble.sh`](tools/assemble.sh) puts the site together. The scrub page's runs are
-   deployed here with GRL-SNAM's cvcpkg closure (`grl-snam-cp312`: torch, pycvc-gl) on the
-   checkpoints in the cvcpkg package `grl-snam-learning-checkpoints`, and cached;
+   deployed here with a cvcpkg closure (torch, pycvc-gl) whose libcvc is pinned to `LIBCVC_REF`'s
+   version, the one `ariglx-web` is built from, on the checkpoints in the cvcpkg package
+   `grl-snam-learning-checkpoints`, and cached;
 4. [`tools/site_smoke.mjs`](tools/site_smoke.mjs) and GRL-SNAM's `pages/smoke.mjs` load it in a
    headless Chrome as Pages serves it;
 5. on `main`, it deploys.

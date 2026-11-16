@@ -14,9 +14,10 @@ name: pages
 #      ariglx-web, with its ariadne.config.json and every file it preloads (LEARN_HISTORIES).
 #      `--scrub-only` writes the scrub page: `grl-snam ariadne scrub --view` on the learning
 #      check's three retrains, every checkpoint deployed here, natively (that needs torch and
-#      libcvc's sim_world: GRL-SNAM's cvcpkg closure, grl-snam-cp312, and the checkpoints from the
-#      cvcpkg package grl-snam-learning-checkpoints; the runs are cached). Everything a page fetches
-#      is on the site's own origin: cvcpkg.org sends no CORS header for this one.
+#      libcvc's sim_world: a cvcpkg closure whose libcvc family is pinned to LIBCVC_REF's version,
+#      the one ariglx-web is built from, and the checkpoints from the cvcpkg package
+#      grl-snam-learning-checkpoints; the runs are cached). Everything a page fetches is on the
+#      site's own origin: cvcpkg.org sends no CORS header for this one.
 #   4. tools/assemble.sh puts the site together: the landing page (site/), the July to August 2026
 #      archive (archive/2026-08, as published), redirects from the archive pages' old URLs, the
 #      libcvc nav demos' thumbnails, learn/ and scrub/.
@@ -53,9 +54,11 @@ permissions:
 env:
   # The upstream GRL-SNAM ref the site is built from: main, which is authoritative.
   GRL_SNAM_REF: main
-  # The libcvc tag ariglx-web is built from: the newest with cvcpkg/recipes/ariglx-web. Ariadne's
-  # chart: widget (libcvc#1169) is not in it, so learn draws its curves as text.
-  LIBCVC_REF: v3.7.13
+  # The libcvc release the pages run on: ariglx-web is built from this tag, and the scrub page's
+  # runs are deployed with the catalog's libcvc of the same version (pinned below), since the page
+  # builds libcvc's generated world again with its own generator. 4.0.0 has Ariadne's chart:
+  # widget (libcvc#1169, 3.7.14+), so learn and scrub draw charts.
+  LIBCVC_REF: v4.0.0
   # The histories the learn page shows, paths in the GRL-SNAM checkout (.jsonl or .jsonl.gz; their
   # basenames differ, since learn labels each run by its file stem). Empty: assemble.py's default,
   # the learning check's five retrain seeds (docs/learning-validation/retrain/seed*.history.jsonl.gz).
@@ -151,15 +154,22 @@ jobs:
           path: ariglx-web
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      # The scrub page's runs are deployed here: grl_snam's closure (torch, pycvc-gl) from cvcpkg,
-      # as GRL-SNAM's own CI installs it, and the learning check's checkpoints (not in any repo).
-      - name: Install grl_snam's closure via cvcpkg (to deploy the scrub page's runs)
+      # The scrub page's runs are deployed here: a deploy reads numpy, torch, pycvc and pycvc_gl,
+      # whose libcvc family is pinned to LIBCVC_REF's version (the catalog's newest libcvc may be
+      # another, whose generator would not build the world the page draws), and the learning
+      # check's checkpoints (not in any repo).
+      - name: Install the deploy's closure via cvcpkg, libcvc pinned to LIBCVC_REF
         if: steps.src.outputs.scrub == 'true'
         id: deps
-        uses: transfix/libcvc-deps/.github/actions/cvcpkg-install@master
-        with:
-          recipe: upstream/grl-snam/cvcpkg/recipes/grl-snam-cp312
-          build_type: Release
+        run: |
+          set -euo pipefail
+          v="${LIBCVC_REF#v}"
+          prefix="$RUNNER_TEMP/closure"
+          cvcpkg install python312 numpy-cp312 torch-cp312 "libcvc==$v" "cvcgl==$v" \
+            "pycvc-cp312==$v" "pycvc-gl-cp312==$v" --platform linux --prefix "$prefix" \
+            --config release --link shared --no-fallback-to-source
+          ls "$prefix"/lib/libcvc.so.* | head -3
+          echo "path=$prefix" >> "$GITHUB_OUTPUT"
 
       - name: Install the learning check's checkpoints (grl-snam-learning-checkpoints)
         if: steps.src.outputs.scrub == 'true'
@@ -173,7 +183,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: scrub-runs
-          key: scrub-runs-${{ hashFiles('upstream/grl-snam/grl_snam/**', 'upstream/grl-snam/docs/learning-validation/**', 'upstream/grl-snam/cvcpkg/recipes/grl-snam-learning-checkpoints/**') }}
+          key: scrub-runs-${{ env.LIBCVC_REF }}-${{ hashFiles('upstream/grl-snam/grl_snam/**', 'upstream/grl-snam/docs/learning-validation/**', 'upstream/grl-snam/cvcpkg/recipes/grl-snam-learning-checkpoints/**') }}
 
       - name: Assemble the site
         env:
@@ -189,10 +199,14 @@ jobs:
             pages+=(--learn "$RUNNER_TEMP/learn")
           fi
           if [ "${{ steps.src.outputs.scrub }}" = true ]; then
-            test -n "$PREFIX" || { echo "::error::no grl-snam-cp312 closure"; exit 1; }
+            test -n "$PREFIX" || { echo "::error::no deploy closure"; exit 1; }
+            expect=()  # GRL-SNAM's assemble refuses runs deployed on another libcvc than the page's
+            if grep -q -- '--expect-libcvc' upstream/grl-snam/pages/assemble.py; then
+              expect=(--expect-libcvc "$LIBCVC_REF")
+            fi
             "$PYTHON" upstream/grl-snam/pages/assemble.py --host ariglx-web/share/ariglx-web \
               --scrub-only --out "$RUNNER_TEMP/scrub" --python "$PREFIX/bin/python3.12" \
-              --checkpoints "$CHECKPOINTS" --scrub-cache scrub-runs
+              --checkpoints "$CHECKPOINTS" --scrub-cache scrub-runs "${expect[@]}"
             pages+=(--scrub "$RUNNER_TEMP/scrub")
           fi
           bash tools/assemble.sh --out _site_full --grl-snam upstream/grl-snam \
