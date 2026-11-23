@@ -168,6 +168,11 @@ jobs:
           cvcpkg install python312 numpy-cp312 torch-cp312 "libcvc==$v" "cvcgl==$v" \
             "pycvc-cp312==$v" "pycvc-gl-cp312==$v" --platform linux --prefix "$prefix" \
             --config release --link shared --no-fallback-to-source
+          # The Humvee's glTF the scrub page draws its cars with: GRL-SNAM's assemble ships it from
+          # --python's prefix (share/cvc-scenes/shared/Humvee.glb, CC BY 4.0, credited in the
+          # page's THIRD_PARTY_NOTICES.md); without it the cars are boxes.
+          cvcpkg install vehicle-humvee --prefix "$prefix" --platform any --config release \
+            --link shared --no-fallback-to-source
           ls "$prefix"/lib/libcvc.so.* | head -3
           echo "path=$prefix" >> "$GITHUB_OUTPUT"
 
