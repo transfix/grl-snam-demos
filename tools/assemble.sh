@@ -2,6 +2,7 @@
 # tools/assemble.sh — the site as Pages serves it, in one directory:
 #
 #   tools/assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]
+#                     [--scrub-austin DIR]
 #
 #   /                 site/ (the landing page), its provenance filled in from the two checkouts
 #   /archive/2026-08/ the August site, as published on 2026-08-14 (archive/2026-08, unchanged)
@@ -12,6 +13,8 @@
 #                     card is left out, so the site has no link to a page it does not have.
 #   /scrub/           --scrub: the scrub page, the same way (`grl-snam ariadne scrub --view` on the
 #                     runs GRL-SNAM's pages/assemble.py deployed); without it, no scrub card.
+#   /scrub-austin/    --scrub-austin: the scrub page in Austin, the same way (the same runs, deployed
+#                     there; the page fetches the city from cvcpkg.org); without it, no card.
 #   /coph/            the CoPH poster, GRL-SNAM's own page (pages/site/coph/: demo 2a's walkthrough
 #                     video and the claims), copied as it is, with its thumbnail. Without it in the
 #                     GRL-SNAM checkout, no CoPH card.
@@ -20,8 +23,12 @@
 # --grl-snam is a CVC-Lab/GRL-SNAM checkout, --libcvc a transfix/libcvc checkout (the pinned tag).
 set -euo pipefail
 
-usage() { echo "usage: assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]" >&2; exit 2; }
-OUT= GRL= LIBCVC= LEARN= SCRUB=
+usage() {
+  echo "usage: assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]" \
+       "[--scrub-austin DIR]" >&2
+  exit 2
+}
+OUT= GRL= LIBCVC= LEARN= SCRUB= AUSTIN=
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
@@ -29,6 +36,7 @@ while [[ $# -gt 0 ]]; do
     --libcvc) LIBCVC="$2"; shift 2 ;;
     --learn) LEARN="$2"; shift 2 ;;
     --scrub) SCRUB="$2"; shift 2 ;;
+    --scrub-austin) AUSTIN="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -36,6 +44,7 @@ done
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -z "$LEARN" || -f "$LEARN/index.html" ]] || { echo "assemble: $LEARN has no index.html" >&2; exit 1; }
 [[ -z "$SCRUB" || -f "$SCRUB/index.html" ]] || { echo "assemble: $SCRUB has no index.html" >&2; exit 1; }
+[[ -z "$AUSTIN" || -f "$AUSTIN/index.html" ]] || { echo "assemble: $AUSTIN has no index.html" >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/img"
@@ -78,6 +87,12 @@ else
   sed -i '/<!-- scrub:begin -->/,/<!-- scrub:end -->/d' "$OUT/index.html"
   rm -f "$OUT/img/scrub.jpg"
 fi
+if [[ -n "$AUSTIN" ]]; then
+  cp -R "$AUSTIN" "$OUT/scrub-austin"
+else
+  sed -i '/<!-- scrub-austin:begin -->/,/<!-- scrub-austin:end -->/d' "$OUT/index.html"
+  rm -f "$OUT/img/scrub-austin.jpg"
+fi
 # The CoPH poster is self-contained (it loads nothing outside coph/), so it is served as it is.
 if [[ -f "$GRL/pages/site/coph/index.html" && -f "$GRL/pages/site/img/coph.jpg" ]]; then
   cp -R "$GRL/pages/site/coph" "$OUT/coph"
@@ -99,12 +114,15 @@ if grep -q '@[A-Z_]*@' "$OUT/index.html"; then
   exit 1
 fi
 
-learn_json=null scrub_json=null
+learn_json=null scrub_json=null austin_json=null
 if [[ -n "$LEARN" && -f "$LEARN/ariadne.config.json" ]]; then
   learn_json="$(cat "$LEARN/ariadne.config.json")"
 fi
 if [[ -n "$SCRUB" && -f "$SCRUB/ariadne.config.json" ]]; then
   scrub_json="$(cat "$SCRUB/ariadne.config.json")"
+fi
+if [[ -n "$AUSTIN" && -f "$AUSTIN/ariadne.config.json" ]]; then
+  austin_json="$(cat "$AUSTIN/ariadne.config.json")"
 fi
 cat > "$OUT/build.json" <<EOF
 {
@@ -113,8 +131,10 @@ cat > "$OUT/build.json" <<EOF
   "grl_snam": "$grl_sha",
   "libcvc": {"ref": "$libcvc_ref", "sha": "$libcvc_sha"},
   "learn": $learn_json,
-  "scrub": $scrub_json
+  "scrub": $scrub_json,
+  "scrub_austin": $austin_json
 }
 EOF
 touch "$OUT/.nojekyll"
-echo "assemble: $OUT ($(du -sh "$OUT" | cut -f1)); learn page: ${LEARN:-none}; scrub page: ${SCRUB:-none}"
+echo "assemble: $OUT ($(du -sh "$OUT" | cut -f1)); learn page: ${LEARN:-none}; scrub page:" \
+     "${SCRUB:-none}; Austin scrub page: ${AUSTIN:-none}"
