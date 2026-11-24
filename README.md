@@ -11,6 +11,7 @@ and deployed as a Pages artifact: nothing built is committed here.
 | `/` | [`site/`](site/): the landing page (figures, the demos that run in the browser, the archive) |
 | `/learn/` | GRL-SNAM's `pages/assemble.py`: `grl-snam ariadne learn` on libcvc's `ariglx-web` (CPython 3.12, pycvc, pycvc_gl and numpy in WebAssembly), with the learning check's histories |
 | `/scrub/` | GRL-SNAM's `pages/assemble.py`: `grl-snam ariadne scrub --view` on `ariglx-web`, every checkpoint of the learning check's three retrains, deployed when the site is built |
+| `/coph/` | GRL-SNAM's `pages/site/coph/`, copied as it is: the CoPH poster (demo 2a's walkthrough video, the results the reference establishes and what it does not). Without it in GRL-SNAM, the landing page drops its card |
 | `/archive/2026-08/` | [`archive/2026-08/`](archive/2026-08/): the July to August 2026 deliverables, as published on 2026-08-14 |
 | `/2026-0*/` | redirects from the archive pages' old URLs |
 | `/img/` | the libcvc nav demos' thumbnails (from libcvc's gallery, and `site/img/`) |
