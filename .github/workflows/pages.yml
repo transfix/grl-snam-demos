@@ -34,9 +34,8 @@ name: pages
 #      checks and upload the screenshots.
 #
 # PUBLISH_LEARN, PUBLISH_SCRUB and PUBLISH_SCRUB_AUSTIN say whether the deployed site has learn/,
-# scrub/ and scrub-austin/. The pages
-# show the learning check's results, so they go public only on Joe's word (both given); a page not
-# published is still built and checked on every run. While GRL-SNAM has no pages/ scripts at
+# scrub/ and scrub-austin/. The pages show the learning check's results, so they go public only on
+# Joe's word (all three given); a page not published is still built and checked on every run. While GRL-SNAM has no pages/ scripts at
 # GRL_SNAM_REF, the run builds the landing page and the archive alone, with a warning.
 #
 # Requires Settings -> Pages -> Source = "GitHub Actions".
@@ -181,6 +180,11 @@ jobs:
           cvcpkg install python312 numpy-cp312 torch-cp312 "libcvc==$v" "cvcgl==$v" \
             "pycvc-cp312==$v" "pycvc-gl-cp312==$v" --platform linux --prefix "$prefix" \
             --config release --link shared --no-fallback-to-source
+          # The Humvee's glTF the scrub page draws its cars with: GRL-SNAM's assemble ships it from
+          # --python's prefix (share/cvc-scenes/shared/Humvee.glb, CC BY 4.0, credited in the
+          # page's THIRD_PARTY_NOTICES.md); without it the cars are boxes.
+          cvcpkg install vehicle-humvee --prefix "$prefix" --platform any --config release \
+            --link shared --no-fallback-to-source
           ls "$prefix"/lib/libcvc.so.* | head -3
           echo "path=$prefix" >> "$GITHUB_OUTPUT"
 
