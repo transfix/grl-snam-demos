@@ -4,6 +4,7 @@
 // src/arigl/web/test/arigl_web_smoke.mjs.
 //
 //   node site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] [--scrub-expect REGEX]
+//                       [--scrub-austin-expect REGEX]
 //                       [--shots DIR] [--external] [--keep]
 //   node site_smoke.mjs --site DIR --serve PORT    (serve it only, to look at it in a browser)
 //
@@ -24,6 +25,11 @@
 //   scrub      when the site has scrub/: the same for the scrub page (grl-snam ariadne scrub
 //              --view on the runs deployed when the site was built), with --scrub-expect.
 //              --shots: scrub.png.
+//   scrub-austin  when the site has scrub-austin/: the same for the scrub page in Austin (the
+//              same runs, deployed there), with --scrub-austin-expect. Its connect-src alone also
+//              has https://cvcpkg.org: the page's data store fetches the city, a cvcpkg package,
+//              from cvcpkg.org (it lets any origin read a public package). --shots:
+//              scrub-austin.png.
 //
 // Chrome is driven over the DevTools protocol (Node 22's fetch and WebSocket, no other
 // dependency). Exit status 0 when every case passes.
@@ -42,33 +48,41 @@ const opt = name => {
 const SITE = opt('--site'), CHROME = opt('--chrome'), SHOTS = opt('--shots');
 const LEARN_EXPECT = opt('--learn-expect') ? new RegExp(opt('--learn-expect')) : null;
 const SCRUB_EXPECT = opt('--scrub-expect') ? new RegExp(opt('--scrub-expect')) : null;
+const AUSTIN_EXPECT = opt('--scrub-austin-expect') ? new RegExp(opt('--scrub-austin-expect')) : null;
 const EXTERNAL = argv.includes('--external');
 // --serve PORT: serve the site as the checks see it (http://127.0.0.1:PORT/grl-snam-demos/) and
 // run nothing, to look at it in a browser.
 const SERVE = opt('--serve');
 if (!SITE || !(CHROME || SERVE) || !fs.existsSync(path.join(SITE, 'index.html'))) {
   console.error('usage: site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] ' +
-                '[--scrub-expect REGEX] [--shots DIR] [--external] [--keep]\n' +
+                '[--scrub-expect REGEX] [--scrub-austin-expect REGEX] [--shots DIR] ' +
+                '[--external] [--keep]\n' +
                 '       site_smoke.mjs --site DIR --serve PORT');
   process.exit(2);
 }
 const BASE = '/grl-snam-demos/';
 const HAS_LEARN = fs.existsSync(path.join(SITE, 'learn', 'index.html'));
 const HAS_SCRUB = fs.existsSync(path.join(SITE, 'scrub', 'index.html'));
+const HAS_AUSTIN = fs.existsSync(path.join(SITE, 'scrub-austin', 'index.html'));
 const TIMEOUT_MS = Number(process.env.SITE_SMOKE_TIMEOUT_MS || 240000);
 
-const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; " +
-            "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:";
+const csp = connect => "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " +
+                       `style-src 'self'; connect-src ${connect}; img-src 'self' data: blob:; ` +
+                       "media-src 'self' blob:";
+const CSP = csp("'self'");
+// The Austin scrub page may also reach the cvcpkg registry, for the city its runs were deployed
+// on; no other page any origin but its own.
+const AUSTIN_CSP = csp("'self' https://cvcpkg.org");
 const TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
                '.css': 'text/css', '.wasm': 'application/wasm', '.json': 'application/json',
                '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.mp4': 'video/mp4',
                '.txt': 'text/plain', '.md': 'text/markdown', '.ari': 'text/plain', '.py': 'text/plain',
                '.zip': 'application/zip', '.data': 'application/octet-stream',
                '.gz': 'application/gzip', '.jsonl': 'application/json'};
-// The pages the strict CSP applies to: the landing page, the learn page and the scrub page (the
+// The pages the strict CSP applies to: the landing page, the learn page and the scrub pages (the
 // archive's pages carry their style inline, as published).
 const strict = rel => rel === '' || rel === 'index.html' || rel.startsWith('learn/') ||
-                      rel.startsWith('scrub/');
+                      rel.startsWith('scrub/') || rel.startsWith('scrub-austin/');
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -100,7 +114,9 @@ const server = http.createServer((req, res) => {
   }
   const headers = {'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream',
                    'Cache-Control': 'no-cache', 'Content-Length': fs.statSync(f).size};
-  if (strict(rel)) headers['Content-Security-Policy'] = CSP;
+  if (strict(rel)) {
+    headers['Content-Security-Policy'] = rel.startsWith('scrub-austin/') ? AUSTIN_CSP : CSP;
+  }
   res.writeHead(200, headers);
   if (req.method === 'HEAD') return res.end();
   fs.createReadStream(f).pipe(res);
@@ -294,7 +310,7 @@ for (const d of fs.readdirSync(path.join(SITE, 'archive', '2026-08')).filter(d =
   await page.close();
 }
 
-// A port's ariglx-web page (learn/, scrub/): it runs its document (window.ariadneWeb's state is
+// A port's ariglx-web page (learn/, scrub/, scrub-austin/): it runs its document (window.ariadneWeb's state is
 // running, no traceback), with no CSP violation and, with an expect REGEX, a line it printed matches.
 async function checkPort(dir, expect, title) {
   const page = await openPage(ROOT + dir + '/');
@@ -337,6 +353,10 @@ async function checkPort(dir, expect, title) {
 
 if (HAS_LEARN) await checkPort('learn', LEARN_EXPECT, 'learn: the ariglx-web page runs grl-snam ariadne learn');
 if (HAS_SCRUB) await checkPort('scrub', SCRUB_EXPECT, 'scrub: the ariglx-web page runs grl-snam ariadne scrub');
+if (HAS_AUSTIN) {
+  await checkPort('scrub-austin', AUSTIN_EXPECT,
+                  'scrub-austin: the ariglx-web page runs grl-snam ariadne scrub in Austin');
+}
 
 async function closeChrome() {
   if (chrome.exitCode !== null || chrome.signalCode !== null) return;

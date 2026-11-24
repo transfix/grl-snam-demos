@@ -43,7 +43,11 @@
 
   <h2 id="browser">In your browser</h2>
   <p class="lede">These pages run the code itself, compiled to WebAssembly: nothing is installed, and every
-  file they load comes from this site.</p>
+  file they load comes from this site.
+<!-- scrub-austin:begin -->
+  Only the Austin scrubber also fetches its city, from cvcpkg.org.
+<!-- scrub-austin:end -->
+  </p>
   <div class="cards">
 <!-- learn:begin -->
     <div class="card feature">
@@ -77,6 +81,22 @@
       </div>
     </div>
 <!-- scrub:end -->
+<!-- scrub-austin:begin -->
+    <div class="card feature">
+      <a class="thumb" href="scrub-austin/"><img src="img/scrub-austin.jpg" alt="The scrub port in Austin: the Scrub and Stats windows, and checkpoint k's Humvee followed from above between Austin's buildings"></a>
+      <div class="body">
+        <div class="tag">Python in the page · grl-snam ariadne scrub · Austin</div>
+        <h3>Watch it learn in Austin</h3>
+        <p>The same scrubber on the same runs, deployed in Austin, where the policies were trained:
+        the terrain and buildings of south Austin, from the cvcpkg package
+        <code>cy-pca/scene-austin-south-small</code> (its geometry © OpenStreetMap contributors). The
+        page fetches the city from cvcpkg.org, the version the runs were deployed on, and says whether
+        the world it built is the one they drove on, the navigator's grid cell by cell.</p>
+        <p class="note">The first visit downloads the scrub page's runs and 10 MB of city from cvcpkg.org.</p>
+        <div class="go"><a class="btn" href="scrub-austin/">Open the scrubber in Austin</a></div>
+      </div>
+    </div>
+<!-- scrub-austin:end -->
     <div class="card">
       <a class="thumb" href="https://transfix.github.io/libcvc/nav_city_swarm/"><img src="img/nav_city_swarm.jpg" alt="800 agents navigating a city block grid" loading="lazy"></a>
       <div class="body">

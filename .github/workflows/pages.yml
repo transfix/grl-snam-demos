@@ -16,11 +16,15 @@ name: pages
 #      check's three retrains, every checkpoint deployed here, natively (that needs torch and
 #      libcvc's sim_world: a cvcpkg closure whose libcvc family is pinned to LIBCVC_REF's version,
 #      the one ariglx-web is built from, and the checkpoints from the cvcpkg package
-#      grl-snam-learning-checkpoints; the runs are cached). Everything a page fetches is on the
-#      site's own origin: cvcpkg.org sends no CORS header for this one.
+#      grl-snam-learning-checkpoints; the runs are cached), on libcvc's generated city.
+#      `--scrub-only --scrub-world data` writes the scrub page in Austin, scrub-austin/: the same
+#      runs deployed there, where the policies were trained (when GRL-SNAM's assemble.py has
+#      --scrub-austin). Everything a page fetches is on the site's own origin, but the Austin page's
+#      city: its data store fetches the cvcpkg package cy-pca/scene-austin-south-small (10 MB) from
+#      cvcpkg.org, which lets any origin read a public package.
 #   4. tools/assemble.sh puts the site together: the landing page (site/), the July to August 2026
 #      archive (archive/2026-08, as published), redirects from the archive pages' old URLs, the
-#      libcvc nav demos' thumbnails, learn/ and scrub/.
+#      libcvc nav demos' thumbnails, learn/, scrub/ and scrub-austin/.
 #   5. Headless Chrome loads it as Pages serves it: tools/site_smoke.mjs (every link and file, the
 #      landing page under a strict CSP, the archive and its redirects, learn/ and scrub/ running),
 #      then GRL-SNAM's own pages/smoke.mjs (learn starts, runs its frames and makes learn-report's
@@ -29,7 +33,8 @@ name: pages
 #   6. Pushes to main, the nightly run and Run workflow deploy it; pull requests stop after the
 #      checks and upload the screenshots.
 #
-# PUBLISH_LEARN and PUBLISH_SCRUB say whether the deployed site has learn/ and scrub/. The pages
+# PUBLISH_LEARN, PUBLISH_SCRUB and PUBLISH_SCRUB_AUSTIN say whether the deployed site has learn/,
+# scrub/ and scrub-austin/. The pages
 # show the learning check's results, so they go public only on Joe's word (both given); a page not
 # published is still built and checked on every run. While GRL-SNAM has no pages/ scripts at
 # GRL_SNAM_REF, the run builds the landing page and the archive alone, with a warning.
@@ -67,6 +72,9 @@ env:
   PUBLISH_LEARN: 'yes'
   # 'yes' puts scrub/ on the deployed site (Joe, 2026-11-15).
   PUBLISH_SCRUB: 'yes'
+  # 'yes' puts scrub-austin/ on the deployed site (Joe, 2026-11-24: Austin as a second page beside
+  # scrub/).
+  PUBLISH_SCRUB_AUSTIN: 'yes'
 
 jobs:
   build:
@@ -110,6 +118,11 @@ jobs:
             scrub=true
           fi
           echo "scrub=$scrub" >> "$GITHUB_OUTPUT"
+          austin=false
+          if [ "$scrub" = true ] && grep -q -- '--scrub-austin' upstream/grl-snam/pages/assemble.py; then
+            austin=true
+          fi
+          echo "austin=$austin" >> "$GITHUB_OUTPUT"
           git -C upstream/grl-snam log -1 --format='GRL-SNAM %h %s'
           git -C upstream/libcvc log -1 --format='libcvc %h %s'
 
@@ -185,6 +198,13 @@ jobs:
           path: scrub-runs
           key: scrub-runs-${{ env.LIBCVC_REF }}-${{ hashFiles('upstream/grl-snam/grl_snam/**', 'upstream/grl-snam/docs/learning-validation/**', 'upstream/grl-snam/cvcpkg/recipes/grl-snam-learning-checkpoints/**') }}
 
+      - name: Cache the Austin scrub page's runs
+        if: steps.src.outputs.austin == 'true'
+        uses: actions/cache@v4
+        with:
+          path: scrub-runs-austin
+          key: scrub-runs-austin-${{ env.LIBCVC_REF }}-${{ hashFiles('upstream/grl-snam/grl_snam/**', 'upstream/grl-snam/docs/learning-validation/**', 'upstream/grl-snam/cvcpkg/recipes/grl-snam-learning-checkpoints/**') }}
+
       - name: Assemble the site
         env:
           PREFIX: ${{ steps.deps.outputs.path }}
@@ -209,6 +229,14 @@ jobs:
               --checkpoints "$CHECKPOINTS" --scrub-cache scrub-runs "${expect[@]}"
             pages+=(--scrub "$RUNNER_TEMP/scrub")
           fi
+          if [ "${{ steps.src.outputs.austin }}" = true ]; then
+            # The same runs deployed in Austin (scrub.ari's data.city), a page of their own.
+            "$PYTHON" upstream/grl-snam/pages/assemble.py --host ariglx-web/share/ariglx-web \
+              --scrub-only --scrub-world data --out "$RUNNER_TEMP/scrub-austin" \
+              --python "$PREFIX/bin/python3.12" --checkpoints "$CHECKPOINTS" \
+              --scrub-cache scrub-runs-austin "${expect[@]}"
+            pages+=(--scrub-austin "$RUNNER_TEMP/scrub-austin")
+          fi
           bash tools/assemble.sh --out _site_full --grl-snam upstream/grl-snam \
             --libcvc upstream/libcvc "${pages[@]}"
           python3 -c "import json; b = json.load(open('_site_full/build.json')); print({k: v for k, v in b.items() if k not in ('learn', 'scrub')})"
@@ -217,7 +245,8 @@ jobs:
         run: |
           # GRL-SNAM's launcher (pages/main.py) says on stderr when the port is running.
           "$NODE" tools/site_smoke.mjs --site _site_full --chrome "$CHROME" --shots shots --external \
-            --learn-expect '^grl-snam: learn: running' --scrub-expect '^grl-snam: scrub: running'
+            --learn-expect '^grl-snam: learn: running' --scrub-expect '^grl-snam: scrub: running' \
+            --scrub-austin-expect '^grl-snam: scrub: running'
 
       - name: Run GRL-SNAM's learn and scrub checks on it
         if: steps.src.outputs.learn == 'true'
@@ -225,6 +254,8 @@ jobs:
           # --no-landing: the landing page is this repo's, checked above.
           scrub=()
           if [ -d _site_full/scrub ]; then scrub=(--scrub scrub/); fi
+          # The Austin page fetches its city from cvcpkg.org: --city-scrub lets it, and it alone.
+          if [ -d _site_full/scrub-austin ]; then scrub+=(--city-scrub scrub-austin/); fi
           "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
             --base /grl-snam-demos/ --learn learn/ "${scrub[@]}" --no-landing --shots shots/grl-snam
 
@@ -236,6 +267,13 @@ jobs:
           fi
           if [ -d _site_full/scrub ]; then
             if [ "$PUBLISH_SCRUB" = yes ]; then pub+=(--scrub "$RUNNER_TEMP/scrub"); else held=1; fi
+          fi
+          if [ -d _site_full/scrub-austin ]; then
+            if [ "$PUBLISH_SCRUB_AUSTIN" = yes ]; then
+              pub+=(--scrub-austin "$RUNNER_TEMP/scrub-austin")
+            else
+              held=1
+            fi
           fi
           if [ "$held" = 0 ]; then
             mv _site_full _site
@@ -253,6 +291,7 @@ jobs:
             echo "- libcvc: \`${{ steps.src.outputs.libcvc }}\` (${LIBCVC_REF})"
             echo "- learn/ built: ${{ steps.src.outputs.learn }}; published: $([ -d _site/learn ] && echo yes || echo no)"
             echo "- scrub/ built: ${{ steps.src.outputs.scrub }}; published: $([ -d _site/scrub ] && echo yes || echo no)"
+            echo "- scrub-austin/ built: ${{ steps.src.outputs.austin }}; published: $([ -d _site/scrub-austin ] && echo yes || echo no)"
             echo "- size: $(du -sh _site | cut -f1)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -300,6 +339,9 @@ jobs:
               echo "live: ${URL} (${got})"
               if curl -fsSI "${URL}learn/ariglx.wasm" >/dev/null 2>&1; then echo "learn/ is live"; fi
               if curl -fsSI "${URL}scrub/ariglx.wasm" >/dev/null 2>&1; then echo "scrub/ is live"; fi
+              if curl -fsSI "${URL}scrub-austin/ariglx.wasm" >/dev/null 2>&1; then
+                echo "scrub-austin/ is live"
+              fi
               exit 0
             fi
             sleep 15
