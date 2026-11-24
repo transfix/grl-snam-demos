@@ -4,7 +4,7 @@
 // src/arigl/web/test/arigl_web_smoke.mjs.
 //
 //   node site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] [--scrub-expect REGEX]
-//                       [--scrub-austin-expect REGEX]
+//                       [--scrub-austin-expect REGEX] [--coph-expect REGEX]
 //                       [--shots DIR] [--external] [--keep]
 //   node site_smoke.mjs --site DIR --serve PORT    (serve it only, to look at it in a browser)
 //
@@ -30,6 +30,9 @@
 //              has https://cvcpkg.org: the page's data store fetches the city, a cvcpkg package,
 //              from cvcpkg.org (it lets any origin read a public package). --shots:
 //              scrub-austin.png.
+//   coph       when the site has coph/live/: the same for the CoPH page (grl-snam ariadne coph
+//              playing back the run files baked when the site was built; it opens on the
+//              crossing's walkthrough), with --coph-expect. --shots: coph-live.png.
 //
 // Chrome is driven over the DevTools protocol (Node 22's fetch and WebSocket, no other
 // dependency). Exit status 0 when every case passes.
@@ -49,13 +52,15 @@ const SITE = opt('--site'), CHROME = opt('--chrome'), SHOTS = opt('--shots');
 const LEARN_EXPECT = opt('--learn-expect') ? new RegExp(opt('--learn-expect')) : null;
 const SCRUB_EXPECT = opt('--scrub-expect') ? new RegExp(opt('--scrub-expect')) : null;
 const AUSTIN_EXPECT = opt('--scrub-austin-expect') ? new RegExp(opt('--scrub-austin-expect')) : null;
+const COPH_EXPECT = opt('--coph-expect') ? new RegExp(opt('--coph-expect')) : null;
 const EXTERNAL = argv.includes('--external');
 // --serve PORT: serve the site as the checks see it (http://127.0.0.1:PORT/grl-snam-demos/) and
 // run nothing, to look at it in a browser.
 const SERVE = opt('--serve');
 if (!SITE || !(CHROME || SERVE) || !fs.existsSync(path.join(SITE, 'index.html'))) {
   console.error('usage: site_smoke.mjs --site DIR --chrome PATH [--learn-expect REGEX] ' +
-                '[--scrub-expect REGEX] [--scrub-austin-expect REGEX] [--shots DIR] ' +
+                '[--scrub-expect REGEX] [--scrub-austin-expect REGEX] [--coph-expect REGEX] ' +
+                '[--shots DIR] ' +
                 '[--external] [--keep]\n' +
                 '       site_smoke.mjs --site DIR --serve PORT');
   process.exit(2);
@@ -64,6 +69,7 @@ const BASE = '/grl-snam-demos/';
 const HAS_LEARN = fs.existsSync(path.join(SITE, 'learn', 'index.html'));
 const HAS_SCRUB = fs.existsSync(path.join(SITE, 'scrub', 'index.html'));
 const HAS_AUSTIN = fs.existsSync(path.join(SITE, 'scrub-austin', 'index.html'));
+const HAS_COPH = fs.existsSync(path.join(SITE, 'coph', 'live', 'index.html'));
 const TIMEOUT_MS = Number(process.env.SITE_SMOKE_TIMEOUT_MS || 240000);
 
 const csp = connect => "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " +
@@ -79,10 +85,11 @@ const TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
                '.txt': 'text/plain', '.md': 'text/markdown', '.ari': 'text/plain', '.py': 'text/plain',
                '.zip': 'application/zip', '.data': 'application/octet-stream',
                '.gz': 'application/gzip', '.jsonl': 'application/json'};
-// The pages the strict CSP applies to: the landing page, the learn page and the scrub pages (the
-// archive's pages carry their style inline, as published).
+// The pages the strict CSP applies to: the landing page, the learn page, the scrub pages, and the
+// CoPH poster with its page (the archive's pages carry their style inline, as published).
 const strict = rel => rel === '' || rel === 'index.html' || rel.startsWith('learn/') ||
-                      rel.startsWith('scrub/') || rel.startsWith('scrub-austin/');
+                      rel.startsWith('scrub/') || rel.startsWith('scrub-austin/') ||
+                      rel.startsWith('coph/');
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -310,7 +317,7 @@ for (const d of fs.readdirSync(path.join(SITE, 'archive', '2026-08')).filter(d =
   await page.close();
 }
 
-// A port's ariglx-web page (learn/, scrub/, scrub-austin/): it runs its document (window.ariadneWeb's state is
+// A port's ariglx-web page (learn/, scrub/, scrub-austin/, coph/live/): it runs its document (window.ariadneWeb's state is
 // running, no traceback), with no CSP violation and, with an expect REGEX, a line it printed matches.
 async function checkPort(dir, expect, title) {
   const page = await openPage(ROOT + dir + '/');
@@ -345,7 +352,8 @@ async function checkPort(dir, expect, title) {
   }
   if (SHOTS) {
     await sleep(4000);  // a few frames past the load
-    if (!await page.screenshot(path.join(SHOTS, `${dir}.png`))) lines.push('no screenshot');
+    const shot = path.join(SHOTS, `${dir.replace(/\//g, '-')}.png`);
+    if (!await page.screenshot(shot)) lines.push('no screenshot');
   }
   report(title, ok, lines);
   await page.close();
@@ -356,6 +364,10 @@ if (HAS_SCRUB) await checkPort('scrub', SCRUB_EXPECT, 'scrub: the ariglx-web pag
 if (HAS_AUSTIN) {
   await checkPort('scrub-austin', AUSTIN_EXPECT,
                   'scrub-austin: the ariglx-web page runs grl-snam ariadne scrub in Austin');
+}
+if (HAS_COPH) {
+  await checkPort('coph/live', COPH_EXPECT,
+                  'coph: the ariglx-web page runs grl-snam ariadne coph on its run files');
 }
 
 async function closeChrome() {
