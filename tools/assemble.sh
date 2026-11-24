@@ -12,6 +12,9 @@
 #                     card is left out, so the site has no link to a page it does not have.
 #   /scrub/           --scrub: the scrub page, the same way (`grl-snam ariadne scrub --view` on the
 #                     runs GRL-SNAM's pages/assemble.py deployed); without it, no scrub card.
+#   /coph/            the CoPH poster, GRL-SNAM's own page (pages/site/coph/: demo 2a's walkthrough
+#                     video and the claims), copied as it is, with its thumbnail. Without it in the
+#                     GRL-SNAM checkout, no CoPH card.
 #   /build.json       which commits the site was built from
 #
 # --grl-snam is a CVC-Lab/GRL-SNAM checkout, --libcvc a transfix/libcvc checkout (the pinned tag).
@@ -74,6 +77,13 @@ if [[ -n "$SCRUB" ]]; then
 else
   sed -i '/<!-- scrub:begin -->/,/<!-- scrub:end -->/d' "$OUT/index.html"
   rm -f "$OUT/img/scrub.jpg"
+fi
+# The CoPH poster is self-contained (it loads nothing outside coph/), so it is served as it is.
+if [[ -f "$GRL/pages/site/coph/index.html" && -f "$GRL/pages/site/img/coph.jpg" ]]; then
+  cp -R "$GRL/pages/site/coph" "$OUT/coph"
+  cp "$GRL/pages/site/img/coph.jpg" "$OUT/img/coph.jpg"
+else
+  sed -i '/<!-- coph:begin -->/,/<!-- coph:end -->/d' "$OUT/index.html"
 fi
 
 grl_sha="$(git -C "$GRL" rev-parse HEAD)"
