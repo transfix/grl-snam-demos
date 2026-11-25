@@ -60,9 +60,10 @@ env:
   GRL_SNAM_REF: main
   # The libcvc release the pages run on: ariglx-web is built from this tag, and the scrub page's
   # runs are deployed with the catalog's libcvc of the same version (pinned below), since the page
-  # builds libcvc's generated world again with its own generator. 4.0.0 has Ariadne's chart:
-  # widget (libcvc#1169, 3.7.14+), so learn and scrub draw charts.
-  LIBCVC_REF: v4.0.0
+  # builds libcvc's generated world again with its own generator. 4.0.7: Ariadne's chart: widget
+  # (libcvc#1169, 3.7.14+), so learn and scrub draw charts, and arigl-web fetches a download that
+  # broke off again past the browser's cache (libcvc#1505: Firefox's "Error in input stream").
+  LIBCVC_REF: v4.0.7
   # The histories the learn page shows, paths in the GRL-SNAM checkout (.jsonl or .jsonl.gz; their
   # basenames differ, since learn labels each run by its file stem). Empty: assemble.py's default,
   # the learning check's five retrain seeds (docs/learning-validation/retrain/seed*.history.jsonl.gz).
