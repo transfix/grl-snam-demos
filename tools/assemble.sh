@@ -2,7 +2,7 @@
 # tools/assemble.sh — the site as Pages serves it, in one directory:
 #
 #   tools/assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]
-#                     [--scrub-austin DIR]
+#                     [--scrub-austin DIR] [--coph DIR]
 #
 #   /                 site/ (the landing page), its provenance filled in from the two checkouts
 #   /archive/2026-08/ the August site, as published on 2026-08-14 (archive/2026-08, unchanged)
@@ -18,6 +18,9 @@
 #   /coph/            the CoPH poster, GRL-SNAM's own page (pages/site/coph/: demo 2a's walkthrough
 #                     video and the claims), copied as it is, with its thumbnail. Without it in the
 #                     GRL-SNAM checkout, no CoPH card.
+#   /coph/live/       --coph: the CoPH page GRL-SNAM's pages/assemble.py --coph-only wrote
+#                     (`grl-snam ariadne coph` playing back each demo's run file, baked when the
+#                     site is built). Without it, the poster's and the card's links to it are cut.
 #   /build.json       which commits the site was built from
 #
 # --grl-snam is a CVC-Lab/GRL-SNAM checkout, --libcvc a transfix/libcvc checkout (the pinned tag).
@@ -25,10 +28,10 @@ set -euo pipefail
 
 usage() {
   echo "usage: assemble.sh --out DIR --grl-snam SRC --libcvc SRC [--learn DIR] [--scrub DIR]" \
-       "[--scrub-austin DIR]" >&2
+       "[--scrub-austin DIR] [--coph DIR]" >&2
   exit 2
 }
-OUT= GRL= LIBCVC= LEARN= SCRUB= AUSTIN=
+OUT= GRL= LIBCVC= LEARN= SCRUB= AUSTIN= COPH=
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
@@ -37,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --learn) LEARN="$2"; shift 2 ;;
     --scrub) SCRUB="$2"; shift 2 ;;
     --scrub-austin) AUSTIN="$2"; shift 2 ;;
+    --coph) COPH="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -45,6 +49,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -z "$LEARN" || -f "$LEARN/index.html" ]] || { echo "assemble: $LEARN has no index.html" >&2; exit 1; }
 [[ -z "$SCRUB" || -f "$SCRUB/index.html" ]] || { echo "assemble: $SCRUB has no index.html" >&2; exit 1; }
 [[ -z "$AUSTIN" || -f "$AUSTIN/index.html" ]] || { echo "assemble: $AUSTIN has no index.html" >&2; exit 1; }
+[[ -z "$COPH" || -f "$COPH/index.html" ]] || { echo "assemble: $COPH has no index.html" >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/img"
@@ -98,7 +103,18 @@ if [[ -f "$GRL/pages/site/coph/index.html" && -f "$GRL/pages/site/img/coph.jpg" 
   cp -R "$GRL/pages/site/coph" "$OUT/coph"
   cp "$GRL/pages/site/img/coph.jpg" "$OUT/img/coph.jpg"
 else
+  [[ -z "$COPH" ]] || { echo "assemble: --coph, but $GRL has no CoPH poster to put it in" >&2; exit 1; }
   sed -i '/<!-- coph:begin -->/,/<!-- coph:end -->/d' "$OUT/index.html"
+fi
+# The CoPH page goes inside the poster, which links to it (between its coph-live marks, as the
+# card here does between its own); without the page, both sets of links go.
+if [[ -n "$COPH" ]]; then
+  cp -R "$COPH" "$OUT/coph/live"
+else
+  if [[ -f "$OUT/coph/index.html" ]]; then
+    sed -i '/<!-- coph-live:/,/<!-- \/coph-live -->/d' "$OUT/coph/index.html"
+  fi
+  sed -i '/<!-- coph-live:begin -->/,/<!-- coph-live:end -->/d' "$OUT/index.html"
 fi
 
 grl_sha="$(git -C "$GRL" rev-parse HEAD)"
