@@ -70,7 +70,10 @@ const HAS_LEARN = fs.existsSync(path.join(SITE, 'learn', 'index.html'));
 const HAS_SCRUB = fs.existsSync(path.join(SITE, 'scrub', 'index.html'));
 const HAS_AUSTIN = fs.existsSync(path.join(SITE, 'scrub-austin', 'index.html'));
 const HAS_COPH = fs.existsSync(path.join(SITE, 'coph', 'live', 'index.html'));
-const TIMEOUT_MS = Number(process.env.SITE_SMOKE_TIMEOUT_MS || 240000);
+// How long a port's page may take to run, as GRL-SNAM's pages/smoke.mjs allows: on a CI runner's
+// software GL a page opened right after another heavy one has taken over 4 minutes to run its
+// first script (the CoPH page after scrub-austin: 277 s and 302 s; 3 s for its Python to start).
+const TIMEOUT_MS = Number(process.env.SITE_SMOKE_TIMEOUT_MS || 600000);
 
 const csp = connect => "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " +
                        `style-src 'self'; connect-src ${connect}; img-src 'self' data: blob:; ` +
@@ -361,13 +364,15 @@ async function checkPort(dir, expect, title) {
 
 if (HAS_LEARN) await checkPort('learn', LEARN_EXPECT, 'learn: the ariglx-web page runs grl-snam ariadne learn');
 if (HAS_SCRUB) await checkPort('scrub', SCRUB_EXPECT, 'scrub: the ariglx-web page runs grl-snam ariadne scrub');
-if (HAS_AUSTIN) {
-  await checkPort('scrub-austin', AUSTIN_EXPECT,
-                  'scrub-austin: the ariglx-web page runs grl-snam ariadne scrub in Austin');
-}
+// The CoPH page before the Austin one: the next page opened after scrub-austin (which decodes a
+// 10 MB city) has been the slow one, so it goes last.
 if (HAS_COPH) {
   await checkPort('coph/live', COPH_EXPECT,
                   'coph: the ariglx-web page runs grl-snam ariadne coph on its run files');
+}
+if (HAS_AUSTIN) {
+  await checkPort('scrub-austin', AUSTIN_EXPECT,
+                  'scrub-austin: the ariglx-web page runs grl-snam ariadne scrub in Austin');
 }
 
 async function closeChrome() {

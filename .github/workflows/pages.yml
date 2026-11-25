@@ -289,14 +289,24 @@ jobs:
         if: steps.src.outputs.learn == 'true'
         run: |
           # --no-landing: the landing page is this repo's, checked above.
+          # Two runs, each with its own Chrome. After the Austin page, headless Chrome on this
+          # runner has taken minutes to close that tab and stopped answering DevTools (run
+          # 45523491878 attempt 2: the close took 8.5 min, then opening the next tab timed out
+          # at 300 s), so the CoPH page goes in the first run, with learn.
+          coph=()
+          # The CoPH page, each demo in turn (?demo=crossing, ?demo=hazard).
+          if [ -d _site_full/coph/live ]; then coph=(--coph coph/live/); fi
+          "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
+            --base /grl-snam-demos/ --learn learn/ "${coph[@]}" --no-landing --shots shots/grl-snam
           scrub=()
           if [ -d _site_full/scrub ]; then scrub=(--scrub scrub/); fi
           # The Austin page fetches its city from cvcpkg.org: --city-scrub lets it, and it alone.
           if [ -d _site_full/scrub-austin ]; then scrub+=(--city-scrub scrub-austin/); fi
-          # The CoPH page, each demo in turn (?demo=crossing, ?demo=hazard).
-          if [ -d _site_full/coph/live ]; then scrub+=(--coph coph/live/); fi
-          "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
-            --base /grl-snam-demos/ --learn learn/ "${scrub[@]}" --no-landing --shots shots/grl-snam
+          if [ ${#scrub[@]} -gt 0 ]; then
+            "$NODE" upstream/grl-snam/pages/smoke.mjs --site _site_full --chrome "$CHROME" \
+              --base /grl-snam-demos/ --no-learn "${scrub[@]}" --no-landing \
+              --shots shots/grl-snam-scrub
+          fi
 
       - name: The site to deploy
         run: |
